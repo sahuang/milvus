@@ -7,6 +7,7 @@
 
 // -*- c++ -*-
 
+#include <faiss/FaissHook.h>
 #include <faiss/utils/random.h>
 
 namespace faiss {
@@ -165,6 +166,61 @@ void rand_perm (int *perm, size_t n, int64_t seed)
 }
 
 
+float nearest_center (int * perm, const float * x, size_t currId, size_t d, size_t numCentroids) {
+    float minDist = std::numeric_limits<float>::max();
+
+	for (int k = 0; k < numCentroids; k++) {
+		float dis = fvec_L2sqr (x + currId * d, x + perm[k] * d, d);
+		if (dis < minDist) {
+			minDist = dis;
+		}
+	}
+
+	return minDist;
+}
+
+
+void rand_perm_plus_plus (int * perm, const float * x, size_t k, size_t n, size_t d, int64_t seed) 
+{
+    RandomGenerator rng (seed);
+    std::vector<float> nearestDis(n, 0);
+    std::vector<float> totalProb(n, 0);
+    size_t numCentroids = 0;
+
+    // first step: init first centroid
+    perm[0] = rng.rand_int (n);
+    ++numCentroids;
+
+    // select other k-1 centroids
+    for (size_t i = 1; i < k; i++) {
+        float sum = 0.0;
+#pragma omp parallel for reduction (+ : sum)
+        for (size_t p = 0; p < n; p++) {
+            float minDistance = nearest_center(perm, x, p, d, numCentroids);
+            sum += minDistance;
+            nearestDis[p] = minDistance;
+        }
+
+        // Roulette Wheel Selection
+        float rand_num = rng.rand_float () * 1000;
+
+        // Obtain totalProb from D^2
+        totalProb[0] = nearestDis[0] * 1000 / sum;
+        if (totalProb[0] >= rand_num) {
+            perm[i] = 0;
+        } else {
+            for (size_t p = 1; p < n; p++) {
+                totalProb[p] = nearestDis[p] * 1000 / sum + totalProb[p - 1];
+                if (totalProb[p] >= rand_num) {
+                    perm[i] = p;
+                    break;
+                }
+            }
+        }
+
+        ++numCentroids;
+    }
+}
 
 
 void byte_rand (uint8_t * x, size_t n, int64_t seed)

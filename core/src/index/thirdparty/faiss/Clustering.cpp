@@ -26,7 +26,7 @@ namespace faiss {
 ClusteringParameters::ClusteringParameters ():
     niter(25),
     nredo(1),
-    verbose(false),
+    verbose(true),
     spherical(false),
     int_centroids(false),
     update_index(false),
@@ -172,7 +172,8 @@ void Clustering::train (idx_t nx, const float *x_in, Index & index) {
         centroids.resize (d * k);
         std::vector<int> perm (nx);
 
-        rand_perm (perm.data(), nx, seed + 1 + redo * 15486557L);
+        // rand_perm (perm.data(), nx, seed + 1 + redo * 15486557L);
+        rand_perm_plus_plus (perm.data(), x, k, nx, d, seed + 1 + redo * 15486557L);
         for (int i = n_input_centroids; i < k ; i++)
             memcpy (&centroids[i * d], x + perm[i] * d,
                     d * sizeof (float));
@@ -206,12 +207,12 @@ void Clustering::train (idx_t nx, const float *x_in, Index & index) {
 
             if (verbose) {
                 printf ("  Iteration %d (%.2f s, search %.2f s): "
-                        "objective=%g imbalance=%.3f nsplit=%d       \r",
+                        "objective=%g imbalance=%.3f nsplit=%d       \n",
                         i, (getmillisecs() - t0) / 1000.0,
                         t_search_tot / 1000,
                         err, imbalance_factor (nx, k, assign),
                         nsplit);
-                fflush (stdout);
+                //fflush (stdout);
             }
 
             post_process_centroids ();
