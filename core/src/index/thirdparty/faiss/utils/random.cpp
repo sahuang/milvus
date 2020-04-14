@@ -166,24 +166,10 @@ void rand_perm (int *perm, size_t n, int64_t seed)
 }
 
 
-float nearest_center (int * perm, const float * x, size_t currId, size_t d, size_t numCentroids) {
-    float minDist = std::numeric_limits<float>::max();
-
-	for (int k = 0; k < numCentroids; k++) {
-		float dis = fvec_L2sqr (x + currId * d, x + perm[k] * d, d);
-		if (dis < minDist) {
-			minDist = dis;
-		}
-	}
-
-	return minDist;
-}
-
-
 void rand_perm_plus_plus (int * perm, const float * x, size_t k, size_t n, size_t d, int64_t seed) 
 {
     RandomGenerator rng (seed);
-    std::vector<float> nearestDis(n, 0);
+    std::vector<float> nearestDis(n, 1.0 / 0.0);
     std::vector<float> totalProb(n, 0);
     size_t numCentroids = 0;
 
@@ -196,9 +182,12 @@ void rand_perm_plus_plus (int * perm, const float * x, size_t k, size_t n, size_
         float sum = 0.0;
 #pragma omp parallel for reduction (+ : sum)
         for (size_t p = 0; p < n; p++) {
-            float minDistance = nearest_center(perm, x, p, d, numCentroids);
-            sum += minDistance;
-            nearestDis[p] = minDistance;
+            // update minimum distance
+            float dis = fvec_L2sqr (x + p * d, x + perm[numCentroids - 1] * d, d);
+            if (dis < nearestDis[p]) {
+                nearestDis[p] = dis;
+            }
+            sum += nearestDis[p];
         }
 
         // Roulette Wheel Selection
