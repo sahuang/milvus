@@ -9,12 +9,18 @@
 #include <cstdlib>
 
 #include <faiss/IndexFlat.h>
+#include <faiss/utils/utils.h>
+#include <faiss/utils/distances.h>
+
 
 
 int main() {
     int d = 64;                            // dimension
-    int nb = 100000;                       // database size
-    int nq = 10000;                        // nb of queries
+    int nb = 5000000;                       // database size
+    int nq = 10;                        // nb of queries
+
+    faiss::distance_compute_blas_threshold = 1;
+    faiss::distance_parallel_mode = 0;
 
     float *xb = new float[d * nb];
     float *xq = new float[d * nq];
@@ -31,7 +37,7 @@ int main() {
         xq[d * i] += i / 1000.;
     }
 
-    faiss::IndexFlatL2 index(d);           // call constructor
+    faiss::IndexFlatIP index(d);           // call constructor
     printf("is_trained = %s\n", index.is_trained ? "true" : "false");
     index.add(nb, xb);                     // add vectors to the index
     printf("ntotal = %ld\n", index.ntotal);
@@ -68,7 +74,11 @@ int main() {
         long *I = new long[k * nq];
         float *D = new float[k * nq];
 
-        index.search(nq, xq, k, D, I);
+        for (int i = 0; i < 5; i++) {
+            double t0 = faiss::getmillisecs();
+            index.search(nq, xq, k, D, I);
+            printf("time spent: %.2f\n", faiss::getmillisecs() - t0);
+        }
 
         // print results
         printf("I (5 first results)=\n");

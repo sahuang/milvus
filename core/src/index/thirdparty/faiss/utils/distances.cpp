@@ -142,7 +142,7 @@ void fvec_renorm_L2 (size_t d, size_t nx, float * __restrict x)
  * KNN functions
  ***************************************************************************/
 
-
+int distance_parallel_mode = 0;
 
 /* Find the nearest neighbors for nx queries in a set of ny vectors */
 static void knn_inner_product_sse (const float * x,
@@ -153,100 +153,110 @@ static void knn_inner_product_sse (const float * x,
 {
     size_t k = res->k;
 
-    size_t thread_max_num = omp_get_max_threads();
-    
-    size_t thread_heap_size = nx * k;
-    size_t all_heap_size = thread_heap_size * thread_max_num;
-    float *value = new float[all_heap_size];
-    int64_t *labels = new int64_t[all_heap_size];
+    if (distance_parallel_mode == 0) {
 
-    // init heap
-    for (size_t i = 0; i < all_heap_size; i++) {
-        value[i] = -1.0 / 0.0;
-        labels[i] = -1;
-    }
+        size_t thread_max_num = omp_get_max_threads();
+
+        size_t thread_heap_size = nx * k;
+        size_t all_heap_size = thread_heap_size * thread_max_num;
+        float *value = new float[all_heap_size];
+        int64_t *labels = new int64_t[all_heap_size];
+
+        // init heap
+        for (size_t i = 0; i < all_heap_size; i++) {
+            value[i] = -1.0 / 0.0;
+            labels[i] = -1;
+        }
 
 #pragma omp parallel for
-    for (size_t j = 0; j < ny; j++) {
-        if(!bitset || !bitset->test(j)) {
-            size_t thread_no = omp_get_thread_num();
-            const float *y_j = y + j * d;
+        for (size_t j = 0; j < ny; j++) {
+            if (!bitset || !bitset->test(j)) {
+                size_t thread_no = omp_get_thread_num();
+                const float *y_j = y + j * d;
+                for (size_t i = 0; i < nx; i++) {
+                    const float *x_i = x + i * d;
+                    float ip = fvec_inner_product(x_i, y_j, d);
+
+                    float *val_ = value + thread_no * thread_heap_size + i * k;
+                    int64_t *ids_ = labels + thread_no * thread_heap_size + i * k;
+                    if (ip > val_[0]) {
+                        minheap_swap_top(k, val_, ids_, ip, j);
+                    }
+                }
+            }
+        }
+
+        for (size_t t = 1; t < thread_max_num; t++) {
+            // merge heap
             for (size_t i = 0; i < nx; i++) {
-                const float *x_i = x + i * d;
-                float ip = fvec_inner_product (x_i, y_j, d);
-
-                float * val_ = value + thread_no * thread_heap_size + i * k;
-                int64_t * ids_ = labels + thread_no * thread_heap_size + i * k;
-                if (ip > val_[0]) {
-                    minheap_swap_top (k, val_, ids_, ip, j);
+                float *__restrict value_x = value + i * k;
+                int64_t *__restrict labels_x = labels + i * k;
+                float *value_x_t = value_x + t * thread_heap_size;
+                int64_t *labels_x_t = labels_x + t * thread_heap_size;
+                for (size_t j = 0; j < k; j++) {
+                    if (value_x_t[j] > value_x[0]) {
+                        minheap_swap_top(k, value_x, labels_x, value_x_t[j], labels_x_t[j]);
+                    }
                 }
             }
         }
-    }
 
-    for (size_t t = 1; t < thread_max_num; t++) {
-        // merge heap
         for (size_t i = 0; i < nx; i++) {
-            float * __restrict value_x = value + i * k;
-            int64_t * __restrict labels_x = labels + i * k;
-            float *value_x_t = value_x + t * thread_heap_size;
-            int64_t *labels_x_t = labels_x + t * thread_heap_size;
-            for (size_t j = 0; j < k; j++) {
-                if (value_x_t[j] > value_x[0]) {
-                    minheap_swap_top (k, value_x, labels_x, value_x_t[j], labels_x_t[j]);
-                }
-            }
+            float *value_x = value + i * k;
+            int64_t *labels_x = labels + i * k;
+            minheap_reorder(k, value_x, labels_x);
         }
-    }
 
-    for (size_t i = 0; i < nx; i++) {
-        float * value_x = value + i * k;
-        int64_t * labels_x = labels + i * k;
-        minheap_reorder (k, value_x, labels_x);
-    }
+        // copy result
+        memcpy(res->val, value, thread_heap_size * sizeof(float));
+        memcpy(res->ids, labels, thread_heap_size * sizeof(int64_t));
 
-    // copy result
-    memcpy(res->val, value, thread_heap_size * sizeof(float));
-    memcpy(res->ids, labels, thread_heap_size * sizeof(int64_t));
+        delete[] value;
+        delete[] labels;
 
-    delete[] value;
-    delete[] labels;
+    } else {
+        size_t check_period = 2048;
 
-/*
-    else {
-        size_t check_period = InterruptCallback::get_period_hint (ny * d);
-        check_period *= thread_max_num;
+        for (size_t i = 0; i < nx; i++) {
+            float *__restrict simi = res->get_val(i);
+            int64_t *__restrict idxi = res->get_ids(i);
+            minheap_heapify (k, simi, idxi);
+        }
 
         for (size_t i0 = 0; i0 < nx; i0 += check_period) {
             size_t i1 = std::min(i0 + check_period, nx);
 
+            for (size_t j0 = 0; j0 < ny; j0 += check_period) {
+                size_t j1 = std::min(j0 + check_period, ny);
+
 #pragma omp parallel for
-            for (size_t i = i0; i < i1; i++) {
-                const float * x_i = x + i * d;
-                const float * y_j = y;
+                for (size_t i = i0; i < i1; i++) {
+                    const float *x_i = x + i * d;
+                    const float *y_j = y;
 
-                float * __restrict simi = res->get_val(i);
-                int64_t * __restrict idxi = res->get_ids (i);
+                    float *__restrict simi = res->get_val(i);
+                    int64_t *__restrict idxi = res->get_ids(i);
 
-                minheap_heapify (k, simi, idxi);
+                    for (size_t j = j0; j < j1; j++) {
+                        if (!bitset || !bitset->test(j)) {
+                            float ip = fvec_inner_product(x_i, y_j, d);
 
-                for (size_t j = 0; j < ny; j++) {
-                    if(!bitset || !bitset->test(j)){
-                        float ip = fvec_inner_product (x_i, y_j, d);
-
-                        if (ip > simi[0]) {
-                            minheap_pop (k, simi, idxi);
-                            minheap_push (k, simi, idxi, ip, j);
+                            if (ip > simi[0]) {
+                                minheap_swap_top(k, simi, idxi, ip, j);
+                            }
                         }
+                        y_j += d;
                     }
-                    y_j += d;
                 }
-                minheap_reorder (k, simi, idxi);
             }
-            InterruptCallback::check ();
+        }
+
+        for (size_t i = 0; i < nx; i++) {
+            float *__restrict simi = res->get_val(i);
+            int64_t *__restrict idxi = res->get_ids(i);
+            minheap_reorder(k, simi, idxi);
         }
     }
-    */
 }
 
 static void knn_L2sqr_sse (
@@ -370,7 +380,7 @@ static void knn_inner_product_blas (
     size_t k = res->k;
 
     /* block sizes */
-    const size_t bs_x = 4096, bs_y = 1024;
+    const size_t bs_x = 2048, bs_y = 2048;
     // const size_t bs_x = 16, bs_y = 16;
     float *ip_block = new float[bs_x * bs_y];
     ScopeDeleter<float> del1(ip_block);;
@@ -579,7 +589,7 @@ static void knn_jaccard_blas (const float * x,
  * KNN driver functions
  *******************************************************/
 
-int distance_compute_blas_threshold = 20000000;
+int distance_compute_blas_threshold = 20;
 
 void knn_inner_product (const float * x,
         const float * y,

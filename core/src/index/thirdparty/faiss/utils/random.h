@@ -57,7 +57,7 @@ void int64_rand_max (int64_t * x, size_t n, uint64_t max, int64_t seed);
 void rand_perm (int * perm, size_t n, int64_t seed);
 
 /* random index selection with k-means++ */
-void rand_perm_plus_plus (int * perm, const float * x, size_t k, size_t n, size_t d, int64_t seed);
-
+void rand_perm_plus_plus_l2 (int * perm, const float * x, size_t k, size_t n, size_t d, int64_t seed);
+void rand_perm_plus_plus_ip (int * perm, const float * x, size_t k, size_t n, size_t d, int64_t seed);
 
 } // namespace faiss

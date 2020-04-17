@@ -19,6 +19,7 @@
 #include <faiss/utils/random.h>
 #include <faiss/utils/distances.h>
 #include <faiss/impl/FaissAssert.h>
+#include <faiss/Index.h>
 #include <faiss/IndexFlat.h>
 
 namespace faiss {
@@ -172,8 +173,20 @@ void Clustering::train (idx_t nx, const float *x_in, Index & index) {
         centroids.resize (d * k);
         std::vector<int> perm (nx);
 
-        // rand_perm (perm.data(), nx, seed + 1 + redo * 15486557L);
-        rand_perm_plus_plus (perm.data(), x, k, nx, d, seed + 1 + redo * 15486557L);
+        if (index.metric_type == METRIC_L2) {
+            printf("L2\n");
+            rand_perm_plus_plus_l2 (perm.data(), x, k, nx, d, seed + 1 + redo * 15486557L);
+        } else if (index.metric_type == METRIC_INNER_PRODUCT) {
+            printf("IP\n");
+            rand_perm_plus_plus_ip (perm.data(), x, k, nx, d, seed + 1 + redo * 15486557L);
+        } else {
+            rand_perm (perm.data(), nx, seed + 1 + redo * 15486557L);
+        }
+
+        for (int i = 0; i < 10; i++) {
+            printf("Centroid %d has id %d\n", i, perm[i]);
+        }
+
         for (int i = n_input_centroids; i < k ; i++)
             memcpy (&centroids[i * d], x + perm[i] * d,
                     d * sizeof (float));

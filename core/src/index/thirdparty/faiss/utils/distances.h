@@ -182,6 +182,7 @@ void pairwise_indexed_inner_product (
 
 // threshold on nx above which we switch to BLAS to compute distances
 extern int distance_compute_blas_threshold;
+extern int distance_parallel_mode;
 
 /** Return the k nearest neighors of each of the nx vectors x among the ny
  *  vector y, w.r.t to max inner product

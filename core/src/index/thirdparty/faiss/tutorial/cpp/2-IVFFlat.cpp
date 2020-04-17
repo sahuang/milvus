@@ -11,15 +11,19 @@
 
 #include <faiss/IndexFlat.h>
 #include <faiss/IndexIVFFlat.h>
+#include <faiss/utils/utils.h>
+#include <faiss/utils/distances.h>
 
 
 int main() {
     int d = 64;                            // dimension
-    int nb = 100000;                       // database size
+    int nb = 1000000;                       // database size
     int nq = 10000;                        // nb of queries
 
     float *xb = new float[d * nb];
     float *xq = new float[d * nq];
+
+    faiss::distance_compute_blas_threshold = 2000000;
 
     for(int i = 0; i < nb; i++) {
         for(int j = 0; j < d; j++)
@@ -34,7 +38,7 @@ int main() {
     }
 
 
-    int nlist = 100;
+    int nlist = 1000;
     int k = 4;
 
     faiss::IndexFlatL2 quantizer(d);       // the other index

@@ -11,14 +11,6 @@
 #include <faiss/utils/random.h>
 #include <set>
 
-struct Compare { 
-    float val; 
-    size_t centroid_idx; 
-};
-#pragma omp declare reduction (max : struct Compare : \
-            omp_out.val = omp_in.val < omp_out.val ? omp_out.val : omp_in.val, \
-            omp_out.centroid_idx = omp_in.val < omp_out.val ? omp_out.centroid_idx : omp_in.centroid_idx) \
-            initializer( omp_priv = {-1, 0} )
 
 namespace faiss {
 
@@ -176,11 +168,10 @@ void rand_perm (int *perm, size_t n, int64_t seed)
 }
 
 
-void rand_perm_plus_plus (int * perm, const float * x, size_t k, size_t n, size_t d, int64_t seed) 
+void rand_perm_plus_plus_l2 (int * perm, const float * x, size_t k, size_t n, size_t d, int64_t seed) 
 {
     RandomGenerator rng (seed);
     std::vector<float> nearestDis(n, 1.0 / 0.0);
-    // std::vector<float> totalProb(n, 0);
     size_t numCentroids = 0;
     size_t id_x = 0;
 
@@ -188,14 +179,11 @@ void rand_perm_plus_plus (int * perm, const float * x, size_t k, size_t n, size_
     perm[0] = rng.rand_int (n);
     ++numCentroids;
 
-    printf("0 index has id %d\n", perm[0]);
-
     // select other k-1 centroids
     for (size_t i = 1; i < k; i++) {
-        // float sum = 0.0;
         float max_dist = 0.0;
-        // struct Compare min_dist_centroid;
         volatile bool flag = false;
+
 #pragma omp parallel for reduction (max : max_dist)
         for (size_t p = 0; p < n; p++) {
             // update minimum distance
@@ -207,12 +195,6 @@ void rand_perm_plus_plus (int * perm, const float * x, size_t k, size_t n, size_
             if (nearestDis[p] > max_dist) {
                 max_dist = nearestDis[p];
             }
-
-            //min_dist_centroid.val = nearestDis[p];
-            //min_dist_centroid.centroid_idx = p;   
-
-            //if (dis == 0) printf("dis 0, id = %d\n", p);
-            // sum += nearestDis[p];
         }
 
 #pragma omp parallel for shared(flag)
@@ -225,24 +207,50 @@ void rand_perm_plus_plus (int * perm, const float * x, size_t k, size_t n, size_
         }
 
         perm[i] = id_x;
-        // Roulette Wheel Selection
-        /*
-        float rand_num = rng.rand_float () * 1000;
+        ++numCentroids;
+    }
+}
 
-        // Obtain totalProb from D^2
-        totalProb[0] = nearestDis[0] * 1000 / sum;
-        if (totalProb[0] >= rand_num) {
-            perm[i] = 0;
-        } else {
-            for (size_t p = 1; p < n; p++) {
-                totalProb[p] = nearestDis[p] * 1000 / sum + totalProb[p - 1];
-                if (totalProb[p] >= rand_num) {
-                    perm[i] = p;
-                    break;
-                }
+
+void rand_perm_plus_plus_ip (int * perm, const float * x, size_t k, size_t n, size_t d, int64_t seed) 
+{
+    RandomGenerator rng (seed);
+    std::vector<float> nearestDis(n, 0);
+    size_t numCentroids = 0;
+    size_t id_x = 0;
+
+    // first step: init first centroid
+    perm[0] = rng.rand_int (n);
+    ++numCentroids;
+
+    // select other k-1 centroids
+    for (size_t i = 1; i < k; i++) {
+        float min_dist = 1.0 / 0.0;
+        volatile bool flag = false;
+
+#pragma omp parallel for reduction (min : min_dist)
+        for (size_t p = 0; p < n; p++) {
+            // update maximum distance
+            float dis = fvec_inner_product (x + p * d, x + perm[numCentroids - 1] * d, d);
+            if (dis > nearestDis[p]) {
+                nearestDis[p] = dis;
             }
-        }*/
 
+            if (nearestDis[p] < min_dist) {
+                min_dist = nearestDis[p];
+            }
+        }
+
+#pragma omp parallel for shared(flag)
+        for (size_t p = 0; p < n; p++) {
+            if (flag) continue;
+            if (fabs(nearestDis[p] - min_dist) < 1.0 / 1024) {
+                id_x = p;
+                flag = true;
+            }
+        }
+
+        perm[i] = id_x;
         ++numCentroids;
     }
 }
