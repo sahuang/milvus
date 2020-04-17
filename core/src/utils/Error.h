@@ -63,6 +63,7 @@ constexpr ErrorCode SERVER_CANNOT_CREATE_FILE = ToServerErrorCode(9);
 constexpr ErrorCode SERVER_CANNOT_DELETE_FOLDER = ToServerErrorCode(10);
 constexpr ErrorCode SERVER_CANNOT_DELETE_FILE = ToServerErrorCode(11);
 constexpr ErrorCode SERVER_BUILD_INDEX_ERROR = ToServerErrorCode(12);
+constexpr ErrorCode SERVER_CANNOT_OPEN_FILE = ToServerErrorCode(13);
 
 constexpr ErrorCode SERVER_COLLECTION_NOT_EXIST = ToServerErrorCode(100);
 constexpr ErrorCode SERVER_INVALID_COLLECTION_NAME = ToServerErrorCode(101);
@@ -82,6 +83,7 @@ constexpr ErrorCode SERVER_INVALID_INDEX_METRIC_TYPE = ToServerErrorCode(115);
 constexpr ErrorCode SERVER_INVALID_INDEX_FILE_SIZE = ToServerErrorCode(116);
 constexpr ErrorCode SERVER_OUT_OF_MEMORY = ToServerErrorCode(117);
 constexpr ErrorCode SERVER_INVALID_PARTITION_TAG = ToServerErrorCode(118);
+constexpr ErrorCode SERVER_INVALID_BINARY_QUERY = ToServerErrorCode(119);
 
 // db error code
 constexpr ErrorCode DB_META_TRANSACTION_FAILED = ToDbErrorCode(1);
