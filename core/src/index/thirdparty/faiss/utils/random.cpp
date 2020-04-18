@@ -200,7 +200,7 @@ void rand_perm_plus_plus_l2 (int * perm, const float * x, size_t k, size_t n, si
 #pragma omp parallel for shared(flag)
         for (size_t p = 0; p < n; p++) {
             if (flag) continue;
-            if (fabs(nearestDis[p] - max_dist) < 1.0 / 1024) {
+            if (nearestDis[p] == max_dist) {
                 id_x = p;
                 flag = true;
             }
@@ -244,7 +244,7 @@ void rand_perm_plus_plus_ip (int * perm, const float * x, size_t k, size_t n, si
 #pragma omp parallel for shared(flag)
         for (size_t p = 0; p < n; p++) {
             if (flag) continue;
-            if (fabs(nearestDis[p] - min_dist) < 1.0 / 1024) {
+            if (fabs(nearestDis[p] - min_dist) < 1e-6) {
                 id_x = p;
                 flag = true;
             }

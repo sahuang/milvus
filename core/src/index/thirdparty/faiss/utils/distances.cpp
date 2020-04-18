@@ -322,6 +322,10 @@ static void knn_L2sqr_sse (
 
     // copy result
     memcpy(res->val, value, thread_heap_size * sizeof(float));
+    //printf("address: %p\n", res->val);
+    //for (int j = 0; j < 10; j++) {
+    //    printf("%d has centrtoid dist %.5f\n", j, res->val[j]);
+    //}
     memcpy(res->ids, labels, thread_heap_size * sizeof(int64_t));
 
     delete[] value;

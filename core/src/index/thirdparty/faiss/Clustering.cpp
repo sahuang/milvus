@@ -175,7 +175,8 @@ void Clustering::train (idx_t nx, const float *x_in, Index & index) {
 
         if (index.metric_type == METRIC_L2) {
             printf("L2\n");
-            rand_perm_plus_plus_l2 (perm.data(), x, k, nx, d, seed + 1 + redo * 15486557L);
+            //rand_perm_plus_plus_l2 (perm.data(), x, k, nx, d, seed + 1 + redo * 15486557L);
+            rand_perm (perm.data(), nx, seed + 1 + redo * 15486557L);
         } else if (index.metric_type == METRIC_INNER_PRODUCT) {
             printf("IP\n");
             rand_perm_plus_plus_ip (perm.data(), x, k, nx, d, seed + 1 + redo * 15486557L);
@@ -184,7 +185,7 @@ void Clustering::train (idx_t nx, const float *x_in, Index & index) {
         }
 
         for (int i = 0; i < 10; i++) {
-            printf("Centroid %d has id %d\n", i, perm[i]);
+            printf("perm[%d] = %d\n", i, perm[i]);
         }
 
         for (int i = n_input_centroids; i < k ; i++)
@@ -206,6 +207,20 @@ void Clustering::train (idx_t nx, const float *x_in, Index & index) {
         for (int i = 0; i < niter; i++) {
             double t0s = getmillisecs();
             index.search (nx, x, 1, dis, assign);
+            printf("address clustering: %p\n", dis);
+
+            float ans = 0.0;
+            //for (int i1 = 0; i1 < 64; i1++) {
+             //   float ip = 1.0 * x[0 * d + i1] * centroids[934 * d + i1];
+             //   ans += x[0 * d + i1] * x[0 * d + i1] + centroids[934 * d + i1] * centroids[934 * d + i1] - 2 * ip;
+            //}
+            //printf("ans = %.5f\n", ans);
+
+            //for (int j = 0; j < 1000; ++j) {
+            //    printf("%d dist = %.5f\n", j, dis[j]);
+            //    printf("%d has centroid id %d\n", j, assign[j]);
+            //}
+
             InterruptCallback::check();
             t_search_tot += getmillisecs() - t0s;
 
