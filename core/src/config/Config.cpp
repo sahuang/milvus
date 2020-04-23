@@ -37,7 +37,123 @@
 namespace milvus {
 namespace server {
 
+const char* CONFIG_NODE_DELIMITER = ".";
+const char* CONFIG_VERSION = "version";
+
+/* server config */
+const char* CONFIG_SERVER = "server_config";
+const char* CONFIG_SERVER_ADDRESS = "address";
+const char* CONFIG_SERVER_ADDRESS_DEFAULT = "127.0.0.1";
+const char* CONFIG_SERVER_PORT = "port";
+const char* CONFIG_SERVER_PORT_DEFAULT = "19530";
+const char* CONFIG_SERVER_DEPLOY_MODE = "deploy_mode";
+const char* CONFIG_SERVER_DEPLOY_MODE_DEFAULT = "single";
+const char* CONFIG_SERVER_TIME_ZONE = "time_zone";
+const char* CONFIG_SERVER_TIME_ZONE_DEFAULT = "UTC+8";
+const char* CONFIG_SERVER_WEB_PORT = "web_port";
+const char* CONFIG_SERVER_WEB_PORT_DEFAULT = "19121";
+
+/* db config */
+const char* CONFIG_DB = "db_config";
+const char* CONFIG_DB_BACKEND_URL = "backend_url";
+const char* CONFIG_DB_BACKEND_URL_DEFAULT = "sqlite://:@:/";
+const char* CONFIG_DB_ARCHIVE_DISK_THRESHOLD = "archive_disk_threshold";
+const char* CONFIG_DB_ARCHIVE_DISK_THRESHOLD_DEFAULT = "0";
+const char* CONFIG_DB_ARCHIVE_DAYS_THRESHOLD = "archive_days_threshold";
+const char* CONFIG_DB_ARCHIVE_DAYS_THRESHOLD_DEFAULT = "0";
+const char* CONFIG_DB_PRELOAD_COLLECTION = "preload_collection";
+const char* CONFIG_DB_PRELOAD_COLLECTION_DEFAULT = "";
+const char* CONFIG_DB_AUTO_FLUSH_INTERVAL = "auto_flush_interval";
+const char* CONFIG_DB_AUTO_FLUSH_INTERVAL_DEFAULT = "1";
+
+/* storage config */
+const char* CONFIG_STORAGE = "storage_config";
+const char* CONFIG_STORAGE_PRIMARY_PATH = "primary_path";
+const char* CONFIG_STORAGE_PRIMARY_PATH_DEFAULT = "/tmp/milvus";
+const char* CONFIG_STORAGE_SECONDARY_PATH = "secondary_path";
+const char* CONFIG_STORAGE_SECONDARY_PATH_DEFAULT = "";
+const char* CONFIG_STORAGE_S3_ENABLE = "s3_enable";
+const char* CONFIG_STORAGE_S3_ENABLE_DEFAULT = "false";
+const char* CONFIG_STORAGE_S3_ADDRESS = "s3_address";
+const char* CONFIG_STORAGE_S3_ADDRESS_DEFAULT = "127.0.0.1";
+const char* CONFIG_STORAGE_S3_PORT = "s3_port";
+const char* CONFIG_STORAGE_S3_PORT_DEFAULT = "9000";
+const char* CONFIG_STORAGE_S3_ACCESS_KEY = "s3_access_key";
+const char* CONFIG_STORAGE_S3_ACCESS_KEY_DEFAULT = "minioadmin";
+const char* CONFIG_STORAGE_S3_SECRET_KEY = "s3_secret_key";
+const char* CONFIG_STORAGE_S3_SECRET_KEY_DEFAULT = "minioadmin";
+const char* CONFIG_STORAGE_S3_BUCKET = "s3_bucket";
+const char* CONFIG_STORAGE_S3_BUCKET_DEFAULT = "milvus-bucket";
+
+/* cache config */
+const char* CONFIG_CACHE = "cache_config";
+const char* CONFIG_CACHE_CPU_CACHE_CAPACITY = "cpu_cache_capacity";
+const char* CONFIG_CACHE_CPU_CACHE_CAPACITY_DEFAULT = "4";
+const char* CONFIG_CACHE_CPU_CACHE_THRESHOLD = "cpu_cache_threshold";
+const char* CONFIG_CACHE_CPU_CACHE_THRESHOLD_DEFAULT = "0.7";
+const char* CONFIG_CACHE_INSERT_BUFFER_SIZE = "insert_buffer_size";
+const char* CONFIG_CACHE_INSERT_BUFFER_SIZE_DEFAULT = "1";
+const char* CONFIG_CACHE_CACHE_INSERT_DATA = "cache_insert_data";
+const char* CONFIG_CACHE_CACHE_INSERT_DATA_DEFAULT = "false";
+
+/* metric config */
+const char* CONFIG_METRIC = "metric_config";
+const char* CONFIG_METRIC_ENABLE_MONITOR = "enable_monitor";
+const char* CONFIG_METRIC_ENABLE_MONITOR_DEFAULT = "false";
+const char* CONFIG_METRIC_ADDRESS = "address";
+const char* CONFIG_METRIC_ADDRESS_DEFAULT = "127.0.0.1";
+const char* CONFIG_METRIC_PORT = "port";
+const char* CONFIG_METRIC_PORT_DEFAULT = "9091";
+
+/* engine config */
+const char* CONFIG_ENGINE = "engine_config";
+const char* CONFIG_ENGINE_USE_BLAS_THRESHOLD = "use_blas_threshold";
+const char* CONFIG_ENGINE_USE_BLAS_THRESHOLD_DEFAULT = "1100";
+const char* CONFIG_ENGINE_OMP_THREAD_NUM = "omp_thread_num";
+const char* CONFIG_ENGINE_OMP_THREAD_NUM_DEFAULT = "0";
+const char* CONFIG_ENGINE_USE_AVX512 = "use_avx512";
+const char* CONFIG_ENGINE_USE_AVX512_DEFAULT = "true";
+const char* CONFIG_ENGINE_GPU_SEARCH_THRESHOLD = "gpu_search_threshold";
+const char* CONFIG_ENGINE_GPU_SEARCH_THRESHOLD_DEFAULT = "1000";
+
+/* gpu resource config */
+const char* CONFIG_GPU_RESOURCE = "gpu_resource_config";
+const char* CONFIG_GPU_RESOURCE_ENABLE = "enable";
+#ifdef MILVUS_GPU_VERSION
+const char* CONFIG_GPU_RESOURCE_ENABLE_DEFAULT = "true";
+#else
+const char* CONFIG_GPU_RESOURCE_ENABLE_DEFAULT = "false";
+#endif
+const char* CONFIG_GPU_RESOURCE_CACHE_CAPACITY = "cache_capacity";
+const char* CONFIG_GPU_RESOURCE_CACHE_CAPACITY_DEFAULT = "1";
+const char* CONFIG_GPU_RESOURCE_CACHE_THRESHOLD = "cache_threshold";
+const char* CONFIG_GPU_RESOURCE_CACHE_THRESHOLD_DEFAULT = "0.7";
+const char* CONFIG_GPU_RESOURCE_DELIMITER = ",";
+const char* CONFIG_GPU_RESOURCE_SEARCH_RESOURCES = "search_resources";
+const char* CONFIG_GPU_RESOURCE_SEARCH_RESOURCES_DEFAULT = "gpu0";
+const char* CONFIG_GPU_RESOURCE_BUILD_INDEX_RESOURCES = "build_index_resources";
+const char* CONFIG_GPU_RESOURCE_BUILD_INDEX_RESOURCES_DEFAULT = "gpu0";
+
+/* tracing config */
+const char* CONFIG_TRACING = "tracing_config";
+const char* CONFIG_TRACING_JSON_CONFIG_PATH = "json_config_path";
+
+/* wal config */
+const char* CONFIG_WAL = "wal_config";
+const char* CONFIG_WAL_ENABLE = "enable";
+const char* CONFIG_WAL_ENABLE_DEFAULT = "true";
+const char* CONFIG_WAL_RECOVERY_ERROR_IGNORE = "recovery_error_ignore";
+const char* CONFIG_WAL_RECOVERY_ERROR_IGNORE_DEFAULT = "true";
+const char* CONFIG_WAL_BUFFER_SIZE = "buffer_size";
+const char* CONFIG_WAL_BUFFER_SIZE_DEFAULT = "256";
+const int64_t CONFIG_WAL_BUFFER_SIZE_MAX = 4096;
+const int64_t CONFIG_WAL_BUFFER_SIZE_MIN = 64;
+const char* CONFIG_WAL_WAL_PATH = "wal_path";
+const char* CONFIG_WAL_WAL_PATH_DEFAULT = "/tmp/milvus/wal";
+
 constexpr int64_t GB = 1UL << 30;
+constexpr int32_t PORT_NUMBER_MIN = 1024;
+constexpr int32_t PORT_NUMBER_MAX = 65535;
 
 static const std::unordered_map<std::string, std::string> milvus_config_version_map(
     {{"0.6.0", "0.1"}, {"0.7.0", "0.2"}, {"0.7.1", "0.2"}, {"0.8.0", "0.3"}});
@@ -698,11 +814,15 @@ Config::CheckServerConfigPort(const std::string& value) {
         std::string msg = "Invalid server port: " + value + ". Possible reason: server_config.port is not a number.";
         return Status(SERVER_INVALID_ARGUMENT, msg);
     } else {
-        int32_t port = std::stoi(value);
-        if (!(port > 1024 && port < 65535)) {
-            std::string msg = "Invalid server port: " + value +
-                              ". Possible reason: server_config.port is not in range (1024, 65535).";
-            return Status(SERVER_INVALID_ARGUMENT, msg);
+        try {
+            int32_t port = std::stoi(value);
+            if (!(port > PORT_NUMBER_MIN && port < PORT_NUMBER_MAX)) {
+                std::string msg = "Invalid server port: " + value +
+                                  ". Possible reason: server_config.port is not in range (1024, 65535).";
+                return Status(SERVER_INVALID_ARGUMENT, msg);
+            }
+        } catch (...) {
+            return Status(SERVER_INVALID_ARGUMENT, "Invalid server_config.port: " + value);
         }
     }
     return Status::OK();
@@ -732,9 +852,7 @@ Config::CheckServerConfigTimeZone(const std::string& value) {
         if (value.substr(0, 3) != "UTC") {
             return Status(SERVER_INVALID_ARGUMENT, "Invalid server_config.time_zone: " + value);
         } else {
-            try {
-                stoi(value.substr(3));
-            } catch (...) {
+            if (!ValidationUtil::IsNumber(value.substr(4))) {
                 return Status(SERVER_INVALID_ARGUMENT, "Invalid server_config.time_zone: " + value);
             }
         }
@@ -749,11 +867,15 @@ Config::CheckServerConfigWebPort(const std::string& value) {
             "Invalid web server port: " + value + ". Possible reason: server_config.web_port is not a number.";
         return Status(SERVER_INVALID_ARGUMENT, msg);
     } else {
-        int32_t port = std::stoi(value);
-        if (!(port > 1024 && port < 65535)) {
-            std::string msg = "Invalid web server port: " + value +
-                              ". Possible reason: server_config.web_port is not in range [1025, 65534].";
-            return Status(SERVER_INVALID_ARGUMENT, msg);
+        try {
+            int32_t port = std::stoi(value);
+            if (!(port > PORT_NUMBER_MIN && port < PORT_NUMBER_MAX)) {
+                std::string msg = "Invalid web server port: " + value +
+                                  ". Possible reason: server_config.web_port is not in range (1024, 65535).";
+                return Status(SERVER_INVALID_ARGUMENT, msg);
+            }
+        } catch (...) {
+            return Status(SERVER_INVALID_ARGUMENT, "Invalid server_config.web_port: " + value);
         }
     }
     return Status::OK();
@@ -915,11 +1037,15 @@ Config::CheckStorageConfigS3Port(const std::string& value) {
         std::string msg = "Invalid s3 port: " + value + ". Possible reason: storage_config.s3_port is not a number.";
         return Status(SERVER_INVALID_ARGUMENT, msg);
     } else {
-        int32_t port = std::stoi(value);
-        if (!(port > 1024 && port < 65535)) {
-            std::string msg = "Invalid s3 port: " + value +
-                              ". Possible reason: storage_config.s3_port is not in range (1024, 65535).";
-            return Status(SERVER_INVALID_ARGUMENT, msg);
+        try {
+            int32_t port = std::stoi(value);
+            if (!(port > PORT_NUMBER_MIN && port < PORT_NUMBER_MAX)) {
+                std::string msg = "Invalid s3 port: " + value +
+                                  ". Possible reason: storage_config.s3_port is not in range (1024, 65535).";
+                return Status(SERVER_INVALID_ARGUMENT, msg);
+            }
+        } catch (...) {
+            return Status(SERVER_INVALID_ARGUMENT, "Invalid storage_config.s3_port: " + value);
         }
     }
     return Status::OK();
@@ -978,11 +1104,15 @@ Config::CheckMetricConfigPort(const std::string& value) {
         std::string msg = "Invalid metric port: " + value + ". Possible reason: metric_config.port is not a number.";
         return Status(SERVER_INVALID_ARGUMENT, msg);
     } else {
-        int32_t port = std::stoi(value);
-        if (!(port > 1024 && port < 65535)) {
-            std::string msg = "Invalid metric port: " + value +
-                              ". Possible reason: metric_config.port is not in range (1024, 65535).";
-            return Status(SERVER_INVALID_ARGUMENT, msg);
+        try {
+            int32_t port = std::stoi(value);
+            if (!(port > PORT_NUMBER_MIN && port < PORT_NUMBER_MAX)) {
+                std::string msg = "Invalid metric port: " + value +
+                                  ". Possible reason: metric_config.port is not in range (1024, 65535).";
+                return Status(SERVER_INVALID_ARGUMENT, msg);
+            }
+        } catch (...) {
+            return Status(SERVER_INVALID_ARGUMENT, "Invalid metric_config.port: " + value);
         }
     }
     return Status::OK();
@@ -1224,11 +1354,15 @@ CheckGpuResource(const std::string& value) {
     }
 
     if (s.compare(0, 3, "gpu") == 0) {
-        int32_t gpu_index = std::stoi(s.substr(3));
-        if (!ValidationUtil::ValidateGpuIndex(gpu_index).ok()) {
-            std::string msg = "Invalid gpu resource: " + value +
-                              ". Possible reason: gpu_resource_config does not match with the hardware.";
-            return Status(SERVER_INVALID_ARGUMENT, msg);
+        try {
+            int32_t gpu_index = std::stoi(s.substr(3));
+            if (!ValidationUtil::ValidateGpuIndex(gpu_index).ok()) {
+                std::string msg = "Invalid gpu resource: " + value +
+                                  ". Possible reason: gpu_resource_config does not match with the hardware.";
+                return Status(SERVER_INVALID_ARGUMENT, msg);
+            }
+        } catch (...) {
+            return Status(SERVER_INVALID_ARGUMENT, "Invalid gpu_resource_config: " + value);
         }
     }
 

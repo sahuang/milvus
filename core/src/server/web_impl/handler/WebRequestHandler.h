@@ -26,7 +26,6 @@
 #include "server/context/Context.h"
 #include "server/delivery/RequestHandler.h"
 #include "server/web_impl/Types.h"
-#include "server/web_impl/dto/CmdDto.hpp"
 #include "server/web_impl/dto/ConfigDto.hpp"
 #include "server/web_impl/dto/DevicesDto.hpp"
 #include "server/web_impl/dto/IndexDto.hpp"
@@ -237,7 +236,7 @@ class WebRequestHandler {
     SystemOp(const OString& op, const OString& body_str, OString& response_str);
 
  public:
-    WebRequestHandler&
+    void
     RegisterRequestHandler(const RequestHandler& handler) {
         request_handler_ = handler;
     }

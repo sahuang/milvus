@@ -6,8 +6,10 @@ Please mark all change in change log and use the issue from GitHub
 
 ## Bug
 -   \#1705 Limit the insert data batch size
+-   \#1929 Skip MySQL meta schema field width check
 
 ## Feature
+-   \#1965 FAISS/NSG/HNSW/ANNOY use unified distance calculation algorithm
 
 ## Improvement
 -   \#221 Refactor LOG macro
@@ -284,7 +286,7 @@ Please mark all change in change log and use the issue from GitHub
 ## Improvement
 -   \#255 Add ivfsq8 test report detailed version
 -   \#260 C++ SDK README
--   \#266 Rpc request source code refactor
+-   \#266 RPC request source code refactor
 -   \#274 Logger the time cost during preloading data
 -   \#275 Rename C++ SDK IndexType
 -   \#284 Change C++ SDK to shared library
@@ -700,7 +702,7 @@ Please mark all change in change log and use the issue from GitHub
 -   MS-34 Fix prometheus-cpp thirdparty
 -   MS-67 Fix license check bug
 -   MS-76 Fix pipeline crash bug
--   MS-100 cmake: fix AWS build issue
+-   MS-100 CMake: fix AWS build issue
 -   MS-101 Change AWS build type to Release
 
 ## Improvement
@@ -715,12 +717,12 @@ Please mark all change in change log and use the issue from GitHub
 -   MS-21 Implement SDK interface part 2
 -   MS-26 CMake. Add thirdparty packages
 -   MS-31 CMake: add prometheus
--   MS-33 cmake: add -j4 to make third party packages build faster
+-   MS-33 CMake: add -j4 to make third party packages build faster
 -   MS-27 Support gpu config and disable license build config in cmake
 -   MS-47 Add query vps metrics
 -   MS-37 Add query, cache usage, disk write speed and file data size metrics
 -   MS-30 Use faiss v1.5.2
--   MS-54 cmake: Change Thrift third party URL to github.com
+-   MS-54 CMake: Change Thrift third party URL to github.com
 -   MS-69 Prometheus: add all proposed metrics
 
 ## Task
