@@ -44,6 +44,10 @@ void
 JobMgr::Stop() {
     if (running_) {
         this->Put(nullptr);
+        {
+            std::unique_lock<std::mutex> lock(build_mutex_);
+            build_index_queue_.push(nullptr);
+        }
         worker_thread_.join();
         build_index_thread_.join();
         running_ = false;
@@ -144,6 +148,7 @@ JobMgr::worker_function() {
             for (auto& task : tasks) {
                 if (task->type_ == TaskType::BuildIndexTask) {
                     build_index_queue_.push(task);
+                    build_cv_.notify_one();
                 } else {
                     disk->task_table().Put(task, nullptr);
                 }
@@ -156,8 +161,8 @@ void
 JobMgr::build_index() {
     SetThreadName("jobmgr_build_index_thread");
     while (running_) {
-        std::unique_lock<std::mutex> lock(mutex_);
-        cv_.wait(lock, [this] { return !build_index_queue_.empty(); });
+        std::unique_lock<std::mutex> lock(build_mutex_);
+        build_cv_.wait(lock, [this] { return !build_index_queue_.empty(); });
 
         auto task = build_index_queue_.front();
         build_index_queue_.pop();
@@ -165,7 +170,7 @@ JobMgr::build_index() {
         if (task == nullptr) {
             break;
         }
-        
+
         auto build_task = std::static_pointer_cast<XBuildIndexTask>(task);
         build_task->Load(LoadType::DISK2CPU, 0);
         build_task->Execute();

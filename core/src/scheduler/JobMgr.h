@@ -71,6 +71,9 @@ class JobMgr : public interface::dumpable {
     std::mutex mutex_;
     std::condition_variable cv_;
 
+    std::mutex build_mutex_;
+    std::condition_variable build_cv_;
+
     ResourceMgrPtr res_mgr_ = nullptr;
 };
 
