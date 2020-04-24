@@ -41,13 +41,20 @@ JobMgr::Start() {
         int policy;
         pthread_getschedparam(worker_thread_.native_handle(), &policy, &sch);
         printf("Priority: %d\n", sch.sched_priority);
-        sch.sched_priority = 20;
+        sch.sched_priority = 99;
         printf("Max, min priority: %d %d\n", sched_get_priority_max(SCHED_RR), sched_get_priority_min(SCHED_RR));
         if(pthread_setschedparam(worker_thread_.native_handle(), SCHED_RR, &sch)) {
             std::cout << "Falha para utilizar setschedparam: " << std::strerror(errno) << '\n';
         }
 
+        sched_param build_sch;
+        int build_policy;
         build_index_thread_ = std::thread(&JobMgr::build_index, this);
+        pthread_getschedparam(build_index_thread_.native_handle(), &build_policy, &build_sch);
+        build_sch.sched_priority = 1;
+        if(pthread_setschedparam(build_index_thread_.native_handle(), SCHED_RR, &build_sch)) {
+            std::cout << "Setschedparam: " << std::strerror(errno) << '\n';
+        }
     }
 }
 
