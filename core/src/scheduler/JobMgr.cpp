@@ -48,6 +48,8 @@ JobMgr::Stop() {
             std::unique_lock<std::mutex> lock(build_mutex_);
             build_index_queue_.push(nullptr);
         }
+        build_cv_.notify_one();
+
         worker_thread_.join();
         build_index_thread_.join();
         running_ = false;
@@ -172,11 +174,14 @@ JobMgr::build_index() {
         }
 
         auto build_task = std::static_pointer_cast<XBuildIndexTask>(task);
+        printf("Start Load...\n");
         build_task->Load(LoadType::DISK2CPU, 0);
+        printf("End Load, Start Execute...\n");
         build_task->Execute();
+        printf("End exec...\n");
 
-        auto build_job = std::static_pointer_cast<BuildIndexJob>(build_task->job_.lock());
-        build_job->BuildIndexDone(build_task->GetIndexId());
+        // auto build_job = std::static_pointer_cast<BuildIndexJob>(build_task->job_.lock());
+        // build_job->BuildIndexDone(build_task->GetIndexId());
     }
 }
 
