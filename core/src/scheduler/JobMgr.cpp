@@ -36,9 +36,7 @@ JobMgr::Start() {
     if (not running_) {
         running_ = true;
         worker_thread_ = std::thread(&JobMgr::worker_function, this);
-
-        std::thread build_index_thread_ = std::thread(&JobMgr::build_index, this);
-        build_index_thread_.join();
+        build_index_thread_ = std::thread(&JobMgr::build_index, this);
     }
 }
 
@@ -47,6 +45,7 @@ JobMgr::Stop() {
     if (running_) {
         this->Put(nullptr);
         worker_thread_.join();
+        build_index_thread_.join();
         running_ = false;
     }
 }
@@ -161,8 +160,9 @@ JobMgr::build_index() {
         build_index_queue_.pop();
         task->Load(LoadType::DISK2CPU, 0);
         task->Execute();
-        auto build_job = std::static_pointer_cast<BuildIndexJob>(task->job_.lock());
-        build_job->BuildIndexDone(build_job->id);
+        auto build_task = std::static_pointer_cast<XBuildIndexTask>(task);
+        auto build_job = std::static_pointer_cast<BuildIndexJob>(build_task->job_.lock());
+        build_job->BuildIndexDone(build_task->GetIndexId());
     }
 }
 

@@ -28,6 +28,9 @@ class XBuildIndexTask : public Task {
     void
     Execute() override;
 
+    size_t
+    GetIndexId() const;
+
  public:
     SegmentSchemaPtr file_;
     SegmentSchema table_file_;

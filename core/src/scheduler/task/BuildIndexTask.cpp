@@ -240,5 +240,10 @@ XBuildIndexTask::Execute() {
     to_index_engine_ = nullptr;
 }
 
+size_t
+XBuildIndexTask::GetIndexId() const {
+    return file_->id_;
+}
+
 }  // namespace scheduler
 }  // namespace milvus

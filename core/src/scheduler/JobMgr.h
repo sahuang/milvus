@@ -66,6 +66,7 @@ class JobMgr : public interface::dumpable {
     std::queue<TaskPtr> build_index_queue_;
 
     std::thread worker_thread_;
+    std::thread build_index_thread_;
 
     std::mutex mutex_;
     std::condition_variable cv_;
