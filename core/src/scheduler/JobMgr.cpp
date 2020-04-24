@@ -11,8 +11,8 @@
 
 #include "scheduler/JobMgr.h"
 
-#include "src/db/Utils.h"
-#include "src/segment/SegmentReader.h"
+#include <src/db/Utils.h>
+#include <src/segment/SegmentReader.h>
 
 #include <limits>
 #include <utility>
@@ -36,6 +36,9 @@ JobMgr::Start() {
     if (not running_) {
         running_ = true;
         worker_thread_ = std::thread(&JobMgr::worker_function, this);
+
+        std::thread build_index_thread_ = std::thread(&JobMgr::build_index, this);
+        build_index_thread_.join();
     }
 }
 
@@ -139,11 +142,27 @@ JobMgr::worker_function() {
 
         // disk resources NEVER be empty.
         if (auto disk = res_mgr_->GetDiskResources()[0].lock()) {
-            // if (auto disk = res_mgr_->GetCpuResources()[0].lock()) {
             for (auto& task : tasks) {
-                disk->task_table().Put(task, nullptr);
+                if (task->type_ == TaskType::BuildIndexTask) {
+                    build_index_queue_.push(task);
+                } else {
+                    disk->task_table().Put(task, nullptr);
+                }
             }
         }
+    }
+}
+
+void
+JobMgr::build_index() {
+    printf("size is: %d\n", build_index_queue_.size());
+    while (!build_index_queue_.empty()) {
+        auto task = build_index_queue_.front();
+        build_index_queue_.pop();
+        task->Load(LoadType::DISK2CPU, 0);
+        task->Execute();
+        auto build_job = std::static_pointer_cast<BuildIndexJob>(task->job_.lock());
+        build_job->BuildIndexDone(build_job->id);
     }
 }
 

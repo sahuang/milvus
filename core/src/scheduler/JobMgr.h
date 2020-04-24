@@ -53,6 +53,9 @@ class JobMgr : public interface::dumpable {
     static std::vector<TaskPtr>
     build_task(const JobPtr& job);
 
+    void
+    build_index();
+
  public:
     static void
     calculate_path(const ResourceMgrPtr& res_mgr, const TaskPtr& task);
@@ -60,6 +63,7 @@ class JobMgr : public interface::dumpable {
  private:
     bool running_ = false;
     std::queue<JobPtr> queue_;
+    std::queue<TaskPtr> build_index_queue_;
 
     std::thread worker_thread_;
 
