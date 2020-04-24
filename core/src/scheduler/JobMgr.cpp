@@ -15,6 +15,7 @@
 #include <src/segment/SegmentReader.h>
 
 #include <limits>
+#include <thread>
 #include <utility>
 
 #include "SchedInst.h"
@@ -36,6 +37,16 @@ JobMgr::Start() {
     if (not running_) {
         running_ = true;
         worker_thread_ = std::thread(&JobMgr::worker_function, this);
+        sched_param sch;
+        int policy;
+        pthread_getschedparam(worker_thread_.native_handle(), &policy, &sch);
+        printf("Priority: %d\n", sch.sched_priority);
+        sch.sched_priority = 20;
+        printf("Max, min priority: %d %d\n", sched_get_priority_max(SCHED_RR), sched_get_priority_min(SCHED_RR));
+        if(pthread_setschedparam(worker_thread_.native_handle(), SCHED_RR, &sch)) {
+            std::cout << "Falha para utilizar setschedparam: " << std::strerror(errno) << '\n';
+        }
+
         build_index_thread_ = std::thread(&JobMgr::build_index, this);
     }
 }
