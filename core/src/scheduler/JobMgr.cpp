@@ -154,13 +154,22 @@ JobMgr::worker_function() {
 
 void
 JobMgr::build_index() {
-    printf("size is: %d\n", build_index_queue_.size());
-    while (!build_index_queue_.empty()) {
+    SetThreadName("jobmgr_build_index_thread");
+    while (running_) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        cv_.wait(lock, [this] { return !build_index_queue_.empty(); });
+
         auto task = build_index_queue_.front();
         build_index_queue_.pop();
-        task->Load(LoadType::DISK2CPU, 0);
-        task->Execute();
+        lock.unlock();
+        if (task == nullptr) {
+            break;
+        }
+        
         auto build_task = std::static_pointer_cast<XBuildIndexTask>(task);
+        build_task->Load(LoadType::DISK2CPU, 0);
+        build_task->Execute();
+
         auto build_job = std::static_pointer_cast<BuildIndexJob>(build_task->job_.lock());
         build_job->BuildIndexDone(build_task->GetIndexId());
     }
