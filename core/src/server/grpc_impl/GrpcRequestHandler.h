@@ -12,7 +12,6 @@
 #pragma once
 
 #include <grpcpp/server_context.h>
-#include <server/context/Context.h>
 
 #include <cstdint>
 #include <map>
@@ -24,6 +23,7 @@
 #include "grpc/gen-milvus/milvus.grpc.pb.h"
 #include "grpc/gen-status/status.pb.h"
 #include "opentracing/tracer.h"
+#include "server/context/Context.h"
 #include "server/delivery/RequestHandler.h"
 #include "server/grpc_impl/interceptor/GrpcInterceptorHookHandler.h"
 #include "src/utils/Status.h"
@@ -71,7 +71,7 @@ class GrpcRequestHandler final : public ::milvus::grpc::MilvusService::Service, 
     OnPreSendMessage(::grpc::experimental::ServerRpcInfo* server_rpc_info,
                      ::grpc::experimental::InterceptorBatchMethods* interceptor_batch_methods) override;
 
-    const std::shared_ptr<Context>&
+    std::shared_ptr<Context>
     GetContext(::grpc::ServerContext* server_context);
 
     void
@@ -320,10 +320,9 @@ class GrpcRequestHandler final : public ::milvus::grpc::MilvusService::Service, 
     //                   const ::milvus::grpc::CollectionName* request,
     //                   ::milvus::grpc::Status* response) override;
     //
-    //    ::grpc::Status
-    //    DescribeCollection(::grpc::ServerContext* context,
-    //                       const ::milvus::grpc::CollectionName* request,
-    //                       ::milvus::grpc::Mapping* response) override;
+    ::grpc::Status
+    DescribeHybridCollection(::grpc::ServerContext* context, const ::milvus::grpc::CollectionName* request,
+                             ::milvus::grpc::Mapping* response) override;
     //
     //    ::grpc::Status
     //    CountCollection(::grpc::ServerContext* context,

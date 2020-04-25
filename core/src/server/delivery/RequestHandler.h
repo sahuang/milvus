@@ -122,6 +122,10 @@ class RequestHandler {
                            std::vector<std::pair<std::string, std::string>>& field_extra_params);
 
     Status
+    DescribeHybridCollection(const std::shared_ptr<Context>& context, const std::string& collection_name,
+                             std::unordered_map<std::string, engine::meta::hybrid::DataType>& field_types);
+
+    Status
     HasHybridCollection(const std::shared_ptr<Context>& context, std::string& collection_name, bool& has_collection);
 
     Status
@@ -129,9 +133,8 @@ class RequestHandler {
 
     Status
     InsertEntity(const std::shared_ptr<Context>& context, const std::string& collection_name,
-                 const std::string& partition_tag,
-                 std::unordered_map<std::string, std::vector<std::string>>& field_values,
-                 std::unordered_map<std::string, engine::VectorsData>& vector_datas);
+                 const std::string& partition_tag, uint64_t& row_num, std::vector<std::string>& field_names,
+                 std::vector<uint8_t>& attr_values, std::unordered_map<std::string, engine::VectorsData>& vector_datas);
 
     Status
     HybridSearch(const std::shared_ptr<Context>& context, context::HybridSearchContextPtr hybrid_search_context,

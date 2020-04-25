@@ -24,14 +24,14 @@
 #include <vector>
 
 #include "config/handler/GpuResourceConfigHandler.h"
-#include "scheduler/optimizer/Pass.h"
+#include "scheduler/selector/Pass.h"
 
 namespace milvus {
 namespace scheduler {
 
-class FaissIVFSQ8Pass : public Pass, public server::GpuResourceConfigHandler {
+class FaissFlatPass : public Pass, public server::GpuResourceConfigHandler {
  public:
-    FaissIVFSQ8Pass() = default;
+    FaissFlatPass() = default;
 
  public:
     void
@@ -44,7 +44,7 @@ class FaissIVFSQ8Pass : public Pass, public server::GpuResourceConfigHandler {
     int64_t count_ = 0;
 };
 
-using FaissIVFSQ8PassPtr = std::shared_ptr<FaissIVFSQ8Pass>;
+using FaissFlatPassPtr = std::shared_ptr<FaissFlatPass>;
 
 }  // namespace scheduler
 }  // namespace milvus

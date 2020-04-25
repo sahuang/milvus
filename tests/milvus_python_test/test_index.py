@@ -166,11 +166,8 @@ class TestIndexBase:
 
         threads_num = 8
         threads = []
-        uri = "tcp://%s:%s" % (args["ip"], args["port"])
-
         for i in range(threads_num):
-            m = get_milvus(args["handler"])
-            m.connect(uri=uri)
+            m = get_milvus(host=args["ip"], port=args["port"], handler=args["handler"])
             t = threading.Thread(target=build, args=(m,))
             threads.append(t)
             t.start()
@@ -186,6 +183,7 @@ class TestIndexBase:
         assert len(result[0]) == top_k
         assert result[0][0].distance == 0.0
 
+    @pytest.mark.level(2)
     @pytest.mark.timeout(BUILD_TIMEOUT)
     def test_create_index_multithread_multicollection(self, connect, args):
         '''
@@ -196,7 +194,6 @@ class TestIndexBase:
         threads_num = 8
         loop_num = 8
         threads = []
-
         collection = []
         j = 0
         while j < (threads_num*loop_num):
@@ -214,7 +211,6 @@ class TestIndexBase:
             while i < loop_num:
                 # assert connect.has_collection(collection[ids*process_num+i])
                 status, ids = connect.add_vectors(collection[ids*threads_num+i], vectors)
-
                 status = connect.create_index(collection[ids*threads_num+i], IndexType.IVFLAT, {"nlist": NLIST})
                 assert status.OK()
                 query_vec = [vectors[0]]
@@ -225,14 +221,10 @@ class TestIndexBase:
                 assert len(result[0]) == top_k
                 assert result[0][0].distance == 0.0
                 i = i + 1
-
-        uri = "tcp://%s:%s" % (args["ip"], args["port"])
-
         for i in range(threads_num):
-            m = get_milvus(args["handler"])
-            m.connect(uri=uri)
+            m = get_milvus(host=args["ip"], port=args["port"], handler=args["handler"])
             ids = i
-            t = threading.Thread(target=create_index, args=(m,ids))
+            t = threading.Thread(target=create_index, args=(m, ids))
             threads.append(t)
             t.start()
             time.sleep(0.2)
@@ -255,8 +247,7 @@ class TestIndexBase:
         threads = []
         uri = "tcp://%s:%s" % (args["ip"], args["port"])
         for i in range(threads_num):
-            m = get_milvus(args["handler"])
-            m.connect(uri=uri)
+            m = get_milvus(host=args["ip"], port=args["port"], handler=args["handler"])
             if(i % 2 == 0):
                 p = threading.Thread(target=build, args=(m,))
             else:
@@ -285,11 +276,8 @@ class TestIndexBase:
 
         process_num = 8
         processes = []
-        uri = "tcp://%s:%s" % (args["ip"], args["port"])
-
         for i in range(process_num):
-            m = get_milvus(args["handler"])
-            m.connect(uri=uri)
+            m = get_milvus(host=args["ip"], port=args["port"], handler=args["handler"])
             p = Process(target=build, args=(m,))
             processes.append(p)
             p.start()
@@ -346,11 +334,8 @@ class TestIndexBase:
                 assert result[0][0].distance == 0.0
                 i = i + 1
 
-        uri = "tcp://%s:%s" % (args["ip"], args["port"])
-
         for i in range(process_num):
-            m = get_milvus(args["handler"])
-            m.connect(uri=uri)
+            m = get_milvus(host=args["ip"], port=args["port"], handler=args["handler"])
             ids = i
             p = Process(target=create_index, args=(m,ids))
             processes.append(p)
@@ -399,6 +384,7 @@ class TestIndexBase:
         status, ids = connect.add_vectors(collection, vectors)
         assert status.OK()
 
+    @pytest.mark.level(2)
     @pytest.mark.timeout(BUILD_TIMEOUT)
     def test_create_same_index_repeatedly(self, connect, collection, get_simple_index):
         '''
@@ -412,6 +398,7 @@ class TestIndexBase:
         status = connect.create_index(collection, index_type, index_param)
         assert status.OK()
 
+    @pytest.mark.level(2)
     @pytest.mark.timeout(BUILD_TIMEOUT)
     def test_create_different_index_repeatedly(self, connect, collection):
         '''
@@ -568,6 +555,7 @@ class TestIndexBase:
         assert result._collection_name == collection
         assert result._index_type == IndexType.FLAT
 
+    @pytest.mark.level(2)
     def test_drop_index_repeatly(self, connect, collection, get_simple_index):
         '''
         target: test drop index repeatly
@@ -635,6 +623,7 @@ class TestIndexBase:
         logging.getLogger().info(status)
         assert status.OK()
 
+    @pytest.mark.level(2)
     def test_create_drop_index_repeatly(self, connect, collection, get_simple_index):
         '''
         target: test create / drop index repeatly, use the same index params
@@ -760,7 +749,7 @@ class TestIndexIP:
     def test_create_index_search_with_query_vectors(self, connect, ip_collection, get_simple_index):
         '''
         target: test create index interface, search with more query vectors
-        method: create collection and add vectors in it, create index
+        method: create collection and add vectors in it, create index, with no manual flush 
         expected: return code equals to 0, and search success
         '''
         index_param = get_simple_index["index_param"]
@@ -787,18 +776,15 @@ class TestIndexIP:
         expected: return code equals to 0, and search success
         '''
         status, ids = connect.add_vectors(ip_collection, vectors)
-
         def build(connect):
             status = connect.create_index(ip_collection, IndexType.IVFLAT, {"nlist": NLIST})
             assert status.OK()
 
         process_num = 8
         processes = []
-        uri = "tcp://%s:%s" % (args["ip"], args["port"])
 
         for i in range(process_num):
-            m = get_milvus(args["handler"])
-            m.connect(uri=uri)
+            m = get_milvus(args["ip"], args["port"], handler=args["handler"])
             p = Process(target=build, args=(m,))
             processes.append(p)
             p.start()
@@ -853,11 +839,8 @@ class TestIndexIP:
                 assert result[0][0].distance == 0.0
                 i = i + 1
 
-        uri = "tcp://%s:%s" % (args["ip"], args["port"])
-
         for i in range(process_num):
-            m = get_milvus(args["handler"])
-            m.connect(uri=uri)
+            m = get_milvus(args["ip"], args["port"], handler=args["handler"])
             ids = i
             p = Process(target=create_index, args=(m,ids))
             processes.append(p)
@@ -991,8 +974,8 @@ class TestIndexIP:
         logging.getLogger().info(get_simple_index)
         status = connect.create_partition(ip_collection, tag)
         status = connect.create_partition(ip_collection, new_tag)
-        status, ids = connect.add_vectors(ip_collection, vectors, partition_tag=tag)
-        status, ids = connect.add_vectors(ip_collection, vectors, partition_tag=new_tag)
+        # status, ids = connect.add_vectors(ip_collection, vectors, partition_tag=tag)
+        # status, ids = connect.add_vectors(ip_collection, vectors, partition_tag=new_tag)
         status = connect.create_index(ip_collection, index_type, index_param)
         status, result = connect.describe_index(ip_collection)
         logging.getLogger().info(result)
@@ -1135,6 +1118,7 @@ class TestIndexIP:
         assert result._collection_name == ip_collection
         assert result._index_type == IndexType.FLAT
 
+    @pytest.mark.level(2)
     def test_drop_index_repeatly(self, connect, ip_collection, get_simple_index):
         '''
         target: test drop index repeatly
@@ -1190,6 +1174,7 @@ class TestIndexIP:
         logging.getLogger().info(status)
         assert status.OK()
 
+    @pytest.mark.level(2)
     def test_create_drop_index_repeatly(self, connect, ip_collection, get_simple_index):
         '''
         target: test create / drop index repeatly, use the same index params
@@ -1821,4 +1806,3 @@ class TestCreateIndexParamsInvalid(object):
         logging.getLogger().info(result)
         assert result._collection_name == collection
         assert result._index_type == IndexType.FLAT
-

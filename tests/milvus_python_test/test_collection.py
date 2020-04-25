@@ -322,7 +322,6 @@ class TestCollection:
         expected: collection_name equals with the collection name created
         '''
         collection_name = gen_unique_str("test_collection")
-        uri = "tcp://%s:%s" % (args["ip"], args["port"])
         param = {'collection_name': collection_name,
                  'dimension': dim,
                  'index_file_size': index_file_size, 
@@ -336,8 +335,7 @@ class TestCollection:
         process_num = 4
         processes = []
         for i in range(process_num):
-            milvus = get_milvus(args["handler"])
-            milvus.connect(uri=uri)
+            milvus = get_milvus(args["ip"], args["port"], handler=args["handler"])
             p = Process(target=describecollection, args=(milvus,))
             processes.append(p)
             p.start()
@@ -465,7 +463,7 @@ class TestCollection:
             assert the value returned by delete method
         expected: create ok and delete ok
         '''
-        loops = 5
+        loops = 2 
         for i in range(loops):
             collection_name = "test_collection"
             param = {'collection_name': collection_name,
@@ -474,7 +472,7 @@ class TestCollection:
                  'metric_type': MetricType.L2}
             connect.create_collection(param)
             status = connect.drop_collection(collection_name)
-            time.sleep(2)
+            time.sleep(1)
             assert status.OK()
 
     def test_delete_create_collection_repeatedly_ip(self, connect):
@@ -484,7 +482,7 @@ class TestCollection:
             assert the value returned by delete method
         expected: create ok and delete ok
         '''
-        loops = 5
+        loops = 2 
         for i in range(loops):
             collection_name = "test_collection"
             param = {'collection_name': collection_name,
@@ -493,7 +491,7 @@ class TestCollection:
                  'metric_type': MetricType.IP}
             connect.create_collection(param)
             status = connect.drop_collection(collection_name)
-            time.sleep(2)
+            time.sleep(1)
             assert status.OK()
 
     # TODO: enable
@@ -507,8 +505,6 @@ class TestCollection:
         '''
         process_num = 6
         processes = []
-        uri = "tcp://%s:%s" % (args["ip"], args["port"])
-
         def deletecollection(milvus):
             status = milvus.drop_collection(collection)
             # assert not status.code==0
@@ -516,8 +512,7 @@ class TestCollection:
             assert status.OK()
 
         for i in range(process_num):
-            milvus = get_milvus(args["handler"])
-            milvus.connect(uri=uri)
+            milvus = get_milvus(args["ip"], args["port"], handler=args["handler"])
             p = Process(target=deletecollection, args=(milvus,))
             processes.append(p)
             p.start()
@@ -760,6 +755,7 @@ class TestCollection:
         with pytest.raises(Exception) as e:
             status = dis_connect.show_collections()
 
+    @pytest.mark.level(2)
     def test_show_collections_no_collection(self, connect):
         '''
         target: test show collections is correct or not, if no collection in db
@@ -785,13 +781,11 @@ class TestCollection:
         expected: collection_name in show collections
         '''
         collection_name = gen_unique_str("test_collection")
-        uri = "tcp://%s:%s" % (args["ip"], args["port"])
         param = {'collection_name': collection_name,
                  'dimension': dim,
                  'index_file_size': index_file_size,
                  'metric_type': MetricType.L2}
         connect.create_collection(param)
-
         def showcollections(milvus):
             status, result = milvus.show_collections()
             assert status.OK()
@@ -801,8 +795,7 @@ class TestCollection:
         processes = []
 
         for i in range(process_num):
-            milvus = get_milvus(args["handler"])
-            milvus.connect(uri=uri)
+            milvus = get_milvus(args["ip"], args["port"], handler=args["handler"])
             p = Process(target=showcollections, args=(milvus,))
             processes.append(p)
             p.start()
@@ -1078,7 +1071,6 @@ def gen_sequence():
         yield x
 
 class TestCollectionLogic(object):
-
     @pytest.mark.parametrize("logic_seq", gen_sequence())
     @pytest.mark.level(2)
     def test_logic(self, connect, logic_seq, args):
