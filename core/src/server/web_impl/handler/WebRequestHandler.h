@@ -78,24 +78,8 @@ class WebRequestHandler {
     }
 
  private:
-    Status
-    ParseQueryInteger(const OQueryParams& query_params, const std::string& key, int64_t& value, bool nullable = true);
-
-    Status
-    ParseQueryStr(const OQueryParams& query_params, const std::string& key, std::string& value, bool nullable = true);
-
-    Status
-    ParseQueryBool(const OQueryParams& query_params, const std::string& key, bool& value, bool nullable = true);
-
- private:
     void
     AddStatusToJson(nlohmann::json& json, int64_t code, const std::string& msg);
-
-    Status
-    ParseSegmentStat(const SegmentStat& seg_stat, nlohmann::json& json);
-
-    Status
-    ParsePartitionStat(const PartitionStat& par_stat, nlohmann::json& json);
 
     Status
     IsBinaryTable(const std::string& collection_name, bool& bin);
