@@ -7,16 +7,13 @@
 namespace faiss {
 
     size_t chain_length = 20;
-    int64_t s_seed = 1;
 
-void get_candidates (size_t n, std::vector<float> q, std::vector<size_t>& cand_ind) {
+void get_candidates (size_t n, std::vector<float> q, std::vector<size_t>& cand_ind, RandomGenerator rng) {
 
     std::vector<float> v(chain_length);
-
-    faiss::float_rand(v.data(), v.size(), s_seed);
-    // unfortunately we generate separate sets of vectors, and don't
-    // want the same values
-    ++s_seed;
+    for (size_t i = 0; i < chain_length; i++) {
+        v[i] = rng.rand_float ();
+    }
 
     for (size_t i = 0; i < chain_length; i++) {
         float target = v[i];
@@ -33,11 +30,12 @@ void get_candidates (size_t n, std::vector<float> q, std::vector<size_t>& cand_i
 }
 
 void kmeans_mc2_l2 (int * perm, const float * x, size_t k, size_t n, size_t d, int64_t seed, bool afk_mc2) {
-    RandomGenerator rng (seed);
+    RandomGenerator rng0 (seed);
+    size_t a0 = rng0.rand_int (), b0 = rng0.rand_int ();
     size_t centroids = 0;
 
     // Sample first center and compute proposal
-    perm[0] = rng.rand_int (n);
+    perm[0] = rng0.rand_int (n);
     ++centroids;
 
     std::vector<float> q(n, 1.0 / n);
@@ -68,10 +66,12 @@ void kmeans_mc2_l2 (int * perm, const float * x, size_t k, size_t n, size_t d, i
 
     // select other k-1 centroids
     for (size_t i = 1; i < k; i++) {
+        RandomGenerator rng (a0 + i * b0);
+
         // choose chain_length candidates
         std::vector<size_t> cand_ind(chain_length, 0);
         std::vector<float> q_cand(chain_length, 0.0);
-        get_candidates(n, q, cand_ind);
+        get_candidates(n, q, cand_ind, rng);
 
         for (size_t p = 0; p < chain_length; p++) {
             q_cand[p] = q[cand_ind[p]];

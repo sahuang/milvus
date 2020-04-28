@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <faiss/utils/random.h>
 
 namespace faiss {
 
@@ -12,7 +13,7 @@ extern size_t chain_length;
    * @param q           prob distribution
    * @param cand_ind    output of size chain_length
    */
-void get_candidates (size_t n, std::vector<float> q, std::vector<size_t>& cand_ind);
+void get_candidates (size_t n, std::vector<float> q, std::vector<size_t>& cand_ind, faiss::RandomGenerator rng);
 
 /** kmeans with mcmc
    *
