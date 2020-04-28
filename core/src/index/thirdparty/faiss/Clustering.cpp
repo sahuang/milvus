@@ -18,10 +18,13 @@
 #include <faiss/utils/utils.h>
 #include <faiss/utils/random.h>
 #include <faiss/utils/distances.h>
+#include <faiss/utils/kmeans.h>
 #include <faiss/impl/FaissAssert.h>
 #include <faiss/IndexFlat.h>
 
 namespace faiss {
+
+int option = 0;
 
 ClusteringParameters::ClusteringParameters ():
     niter(25),
@@ -172,7 +175,12 @@ void Clustering::train (idx_t nx, const float *x_in, Index & index) {
         centroids.resize (d * k);
         std::vector<int> perm (nx);
 
-        rand_perm (perm.data(), nx, seed + 1 + redo * 15486557L);
+        if (option == 0) {
+            kmeans_mc2_l2 (perm.data(), x, k, nx, d, seed + 1 + redo * 15486557L, true);
+        } else {
+            rand_perm (perm.data(), nx, seed + 1 + redo * 15486557L);
+        }
+
         for (int i = n_input_centroids; i < k ; i++)
             memcpy (&centroids[i * d], x + perm[i] * d,
                     d * sizeof (float));

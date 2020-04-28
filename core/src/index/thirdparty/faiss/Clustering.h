@@ -15,6 +15,7 @@
 
 namespace faiss {
 
+extern int option;
 
 /** Class for the clustering parameters. Can be passed to the
  * constructor of the Clustering object.
