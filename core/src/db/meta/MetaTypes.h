@@ -97,6 +97,9 @@ struct SegmentSchema {
 using SegmentSchemaPtr = std::shared_ptr<meta::SegmentSchema>;
 using SegmentsSchema = std::vector<SegmentSchema>;
 
+using File2RefCount = std::map<uint64_t, int64_t>;
+using Table2FileRef = std::map<std::string, File2RefCount>;
+
 namespace hybrid {
 
 enum class DataType {
@@ -129,26 +132,6 @@ struct VectorFieldsSchema {
     std::vector<VectorFieldSchema> vector_fields_;
 };
 using VectorFieldSchemaPtr = std::shared_ptr<VectorFieldSchema>;
-
-struct CollectionSchema {
-    typedef enum {
-        NORMAL,
-        TO_DELETE,
-    } COLLETION_STATE;
-
-    size_t id_ = 0;
-    std::string collection_id_;
-    int32_t state_ = (int)NORMAL;
-    int64_t field_num = 0;
-    int64_t created_on_ = 0;
-    int64_t flag_ = 0;
-    std::string owner_collection_;
-    std::string partition_tag_;
-    std::string version_ = CURRENT_VERSION;
-    uint64_t flush_lsn_ = 0;
-};
-
-using CollectionSchemaPtr = std::shared_ptr<CollectionSchema>;
 
 struct FieldSchema {
     typedef enum {

@@ -108,7 +108,6 @@ TEST_F(SearchByIdTest, BASIC_TEST) {
         ids_to_search.emplace_back(index);
     }
 
-    //    std::this_thread::sleep_for(std::chrono::seconds(3));  // ensure raw data write to disk
     stat = db_->Flush();
     ASSERT_TRUE(stat.ok());
 
@@ -156,6 +155,24 @@ TEST_F(SearchByIdTest, BASIC_TEST) {
             ASSERT_LT(result_distances[topk * i], 1e-3);
         }
     }
+
+    // duplicate id search
+    ids_to_search.clear();
+    ids_to_search.push_back(1);
+    ids_to_search.push_back(1);
+
+    stat = db_->QueryByIDs(dummy_context_,
+                           collection_info.collection_id_,
+                           tags,
+                           topk,
+                           json_params,
+                           ids_to_search,
+                           result_ids,
+                           result_distances);
+    ASSERT_EQ(result_ids.size(), ids_to_search.size() * topk);
+    ASSERT_EQ(result_distances.size(), ids_to_search.size() * topk);
+
+    CheckQueryResult(ids_to_search, topk, result_ids, result_distances);
 }
 
 TEST_F(SearchByIdTest, WITH_INDEX_TEST) {
@@ -197,7 +214,7 @@ TEST_F(SearchByIdTest, WITH_INDEX_TEST) {
     milvus::engine::CollectionIndex index;
     index.engine_type_ = (int)milvus::engine::EngineType::FAISS_IVFSQ8;
     index.extra_params_ = {{"nlist", 10}};
-    stat = db_->CreateIndex(collection_info.collection_id_, index);
+    stat = db_->CreateIndex(dummy_context_, collection_info.collection_id_, index);
     ASSERT_TRUE(stat.ok());
 
     const int64_t topk = 10, nprobe = 10;
@@ -381,7 +398,7 @@ TEST_F(GetVectorByIdTest, WITH_INDEX_TEST) {
     milvus::engine::CollectionIndex index;
     index.extra_params_ = {{"nlist", 10}};
     index.engine_type_ = (int)milvus::engine::EngineType::FAISS_IVFSQ8;
-    stat = db_->CreateIndex(collection_info.collection_id_, index);
+    stat = db_->CreateIndex(dummy_context_, collection_info.collection_id_, index);
     ASSERT_TRUE(stat.ok());
 
     const int64_t topk = 10, nprobe = 10;
@@ -508,7 +525,6 @@ TEST_F(SearchByIdTest, BINARY_TEST) {
         ids_to_search.emplace_back(index);
     }
 
-    //    std::this_thread::sleep_for(std::chrono::seconds(3));  // ensure raw data write to disk
     stat = db_->Flush();
     ASSERT_TRUE(stat.ok());
 
@@ -577,4 +593,22 @@ TEST_F(SearchByIdTest, BINARY_TEST) {
             ASSERT_LT(result_distances[topk * i], 1e-3);
         }
     }
+
+    // duplicate id search
+    ids_to_search.clear();
+    ids_to_search.push_back(1);
+    ids_to_search.push_back(1);
+
+    stat = db_->QueryByIDs(dummy_context_,
+                           collection_info.collection_id_,
+                           tags,
+                           topk,
+                           json_params,
+                           ids_to_search,
+                           result_ids,
+                           result_distances);
+    ASSERT_EQ(result_ids.size(), ids_to_search.size() * topk);
+    ASSERT_EQ(result_distances.size(), ids_to_search.size() * topk);
+
+    CheckQueryResult(ids_to_search, topk, result_ids, result_distances);
 }

@@ -88,7 +88,7 @@ class TestCreateBase:
         tag_name = gen_unique_str()
         status = connect.create_partition(collection, tag_name)
         assert status.OK()
-        status, res = connect.show_partitions(collection)
+        status, res = connect.list_partitions(collection)
         assert status.OK()
         tag_list = []
         for item in res:
@@ -157,7 +157,7 @@ class TestCreateBase:
         assert status.OK()
         status = connect.flush([collection])
         assert status.OK()
-        status, res = connect.count_collection(collection)
+        status, res = connect.count_entities(collection)
         assert res == nq * 2
 
     def test_create_partition_insert_same_tags_two_collections(self, connect, collection):
@@ -183,9 +183,9 @@ class TestCreateBase:
         status, ids = connect.insert(collection_new, vectors, ids, partition_tag=tag)
         status = connect.flush([collection, collection_new])
         assert status.OK()
-        status, res = connect.count_collection(collection)
+        status, res = connect.count_entities(collection)
         assert res == nq
-        status, res = connect.count_collection(collection_new)
+        status, res = connect.count_entities(collection_new)
         assert res == nq
 
 
@@ -193,38 +193,110 @@ class TestShowBase:
 
     """
     ******************************************************************
-      The following cases are used to test `show_partitions` function 
+      The following cases are used to test `list_partitions` function 
     ******************************************************************
     """
-    def test_show_partitions(self, connect, collection):
+    def test_list_partitions(self, connect, collection):
         '''
         target: test show partitions, check status and partitions returned
-        method: create partition first, then call function: show_partitions
+        method: create partition first, then call function: list_partitions
         expected: status ok, partition correct
         '''
         status = connect.create_partition(collection, tag)
-        status, res = connect.show_partitions(collection)
+        status, res = connect.list_partitions(collection)
         assert status.OK()
 
-    def test_show_partitions_no_partition(self, connect, collection):
+    def test_list_partitions_no_partition(self, connect, collection):
         '''
         target: test show partitions with collection name, check status and partitions returned
-        method: call function: show_partitions
+        method: call function: list_partitions
         expected: status ok, partitions correct
         '''
-        status, res = connect.show_partitions(collection)
+        status, res = connect.list_partitions(collection)
         assert status.OK()
 
     def test_show_multi_partitions(self, connect, collection):
         '''
         target: test show partitions, check status and partitions returned
-        method: create partitions first, then call function: show_partitions
+        method: create partitions first, then call function: list_partitions
         expected: status ok, partitions correct
         '''
         tag_new = gen_unique_str()
         status = connect.create_partition(collection, tag)
         status = connect.create_partition(collection, tag_new)
-        status, res = connect.show_partitions(collection)
+        status, res = connect.list_partitions(collection)
+        assert status.OK()
+
+
+class TestHasBase:
+
+    """
+    ******************************************************************
+      The following cases are used to test `has_partition` function
+    ******************************************************************
+    """
+    @pytest.fixture(
+        scope="function",
+        params=gen_invalid_collection_names()
+    )
+    def get_tag_name(self, request):
+        yield request.param
+
+    def test_has_partition(self, connect, collection):
+        '''
+        target: test has_partition, check status and result
+        method: create partition first, then call function: has_partition
+        expected: status ok, result true
+        '''
+        status = connect.create_partition(collection, tag)
+        status, res = connect.has_partition(collection, tag)
+        assert status.OK()
+        logging.getLogger().info(res)
+        assert res
+
+    def test_has_partition_multi_partitions(self, connect, collection):
+        '''
+        target: test has_partition, check status and result
+        method: create partition first, then call function: has_partition
+        expected: status ok, result true
+        '''
+        for tag_name in [tag, "tag_new", "tag_new_new"]:
+            status = connect.create_partition(collection, tag_name)
+        for tag_name in [tag, "tag_new", "tag_new_new"]:
+            status, res = connect.has_partition(collection, tag_name)
+            assert status.OK()
+            assert res
+
+    def test_has_partition_tag_not_existed(self, connect, collection):
+        '''
+        target: test has_partition, check status and result
+        method: then call function: has_partition, with tag not existed
+        expected: status ok, result empty
+        '''
+        status, res = connect.has_partition(collection, tag)
+        assert status.OK()
+        logging.getLogger().info(res)
+        assert not res
+
+    def test_has_partition_collection_not_existed(self, connect, collection):
+        '''
+        target: test has_partition, check status and result
+        method: then call function: has_partition, with collection not existed
+        expected: status not ok
+        '''
+        status, res = connect.has_partition("not_existed_collection", tag)
+        assert not status.OK()
+
+    @pytest.mark.level(2)
+    def test_has_partition_with_invalid_tag_name(self, connect, collection, get_tag_name):
+        '''
+        target: test has partition, with invalid tag name, check status returned
+        method: call function: has_partition
+        expected: status ok
+        '''
+        tag_name = get_tag_name
+        status = connect.create_partition(collection, tag)
+        status, res = connect.has_partition(collection, tag_name)
         assert status.OK()
 
 
@@ -244,7 +316,7 @@ class TestDropBase:
         status = connect.create_partition(collection, tag)
         status = connect.drop_partition(collection, tag)
         assert status.OK()
-        status, res = connect.show_partitions(collection)
+        status, res = connect.list_partitions(collection)
         tag_list = []
         for item in res:
             tag_list.append(item.tag)
@@ -284,7 +356,7 @@ class TestDropBase:
         status = connect.drop_partition(collection, tag)
         time.sleep(2)
         assert not status.OK()
-        status, res = connect.show_partitions(collection)
+        status, res = connect.list_partitions(collection)
         tag_list = []
         for item in res:
             tag_list.append(item.tag)
@@ -301,7 +373,7 @@ class TestDropBase:
         time.sleep(2)
         status = connect.create_partition(collection, tag)
         assert status.OK()
-        status, res = connect.show_partitions(collection)
+        status, res = connect.list_partitions(collection)
         tag_list = []
         for item in res:
             tag_list.append(item.tag)
@@ -345,13 +417,13 @@ class TestNameInvalid(object):
         status = connect.drop_partition(collection, tag_name)
         assert not status.OK()
 
-    def test_show_partitions_with_invalid_collection_name(self, connect, collection, get_collection_name):
+    def test_list_partitions_with_invalid_collection_name(self, connect, collection, get_collection_name):
         '''
         target: test show partitions, with invalid collection name, check status returned
-        method: call function: show_partitions
+        method: call function: list_partitions
         expected: status not ok
         '''
         collection_name = get_collection_name
         status = connect.create_partition(collection, tag)
-        status, res = connect.show_partitions(collection_name)
+        status, res = connect.list_partitions(collection_name)
         assert not status.OK()

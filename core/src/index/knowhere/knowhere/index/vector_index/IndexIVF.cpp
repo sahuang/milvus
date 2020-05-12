@@ -30,6 +30,7 @@
 #include <utility>
 #include <vector>
 
+#include "faiss/BuilderSuspend.h"
 #include "knowhere/common/Exception.h"
 #include "knowhere/common/Log.h"
 #include "knowhere/index/vector_index/IndexIVF.h"
@@ -256,6 +257,9 @@ IVF::GenGraph(const float* data, const int64_t k, GraphType& graph, const Config
     graph.resize(ntotal);
     GraphType res_vec(total_search_count);
     for (int i = 0; i < total_search_count; ++i) {
+        // it is usually used in NSG::train, to check BuilderSuspend
+        faiss::BuilderSuspend::check_wait();
+
         auto b_size = (i == (total_search_count - 1)) && tail_batch_size != 0 ? tail_batch_size : batch_size;
 
         auto& res = res_vec[i];
@@ -310,8 +314,6 @@ IVF::SealImpl() {
     faiss::Index* index = index_.get();
     auto idx = dynamic_cast<faiss::IndexIVF*>(index);
     if (idx != nullptr) {
-        // To be deleted
-        LOG_KNOWHERE_DEBUG_ << "Test before to_readonly: IVF READONLY " << std::boolalpha << idx->is_readonly();
         idx->to_readonly();
     }
 #endif

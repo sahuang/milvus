@@ -37,6 +37,7 @@ aux_source_directory(${MILVUS_ENGINE_SRC}/db db_main_files)
 aux_source_directory(${MILVUS_ENGINE_SRC}/db/engine db_engine_files)
 aux_source_directory(${MILVUS_ENGINE_SRC}/db/insert db_insert_files)
 aux_source_directory(${MILVUS_ENGINE_SRC}/db/meta db_meta_files)
+aux_source_directory(${MILVUS_ENGINE_SRC}/db/merge db_merge_files)
 aux_source_directory(${MILVUS_ENGINE_SRC}/db/wal db_wal_files)
 
 set(grpc_service_files
@@ -143,6 +144,7 @@ set(engine_files
         ${db_engine_files}
         ${db_insert_files}
         ${db_meta_files}
+        ${db_merge_files}
         ${db_wal_files}
         ${metrics_files}
         ${storage_files}
@@ -212,7 +214,14 @@ if (MILVUS_GPU_VERSION)
             )
 endif ()
 
-if (MILVUS_ENABLE_PROFILING)
+# cannot be enabled together with ENABLE_CPU_PROFILING
+if (ENABLE_MEM_PROFILING)
+    set(third_party_libs ${third_party_libs}
+            tcmalloc
+            )
+endif ()
+
+if (ENABLE_CPU_PROFILING)
     set(third_party_libs ${third_party_libs}
             gperftools
             libunwind
@@ -248,6 +257,7 @@ if (NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
 endif ()
 
 add_library(milvus_engine STATIC ${engine_files})
+add_dependencies(milvus_engine fiu)
 target_link_libraries(milvus_engine
         knowhere
         ${third_party_libs}
@@ -259,6 +269,7 @@ if (MILVUS_WITH_PROMETHEUS)
 else ()
     add_library(metrics STATIC ${metrics_files})
 endif ()
+add_dependencies(metrics fiu)
 
 set(metrics_lib
         yaml-cpp
@@ -273,6 +284,7 @@ endif ()
 target_link_libraries(metrics ${metrics_lib})
 
 add_library(tracing STATIC ${tracing_files} ${thirdparty_files})
+add_dependencies(tracing fiu)
 set(tracing_lib
         opentracing
         opentracing_mocktracer
@@ -320,3 +332,11 @@ install(FILES
         ${CMAKE_BINARY_DIR}/fiu_ep-prefix/src/fiu_ep/lib/${CMAKE_SHARED_LIBRARY_PREFIX}fiu${CMAKE_SHARED_LIBRARY_SUFFIX}.0
         ${CMAKE_BINARY_DIR}/fiu_ep-prefix/src/fiu_ep/lib/${CMAKE_SHARED_LIBRARY_PREFIX}fiu${CMAKE_SHARED_LIBRARY_SUFFIX}.1.00
         DESTINATION lib)
+
+if(EXISTS ${CMAKE_BINARY_DIR}/src/index/openblas_ep-prefix/src/openblas_ep/lib/)
+    install(FILES
+            ${CMAKE_BINARY_DIR}/src/index/openblas_ep-prefix/src/openblas_ep/lib/${CMAKE_SHARED_LIBRARY_PREFIX}openblas${CMAKE_SHARED_LIBRARY_SUFFIX}
+            ${CMAKE_BINARY_DIR}/src/index/openblas_ep-prefix/src/openblas_ep/lib/${CMAKE_SHARED_LIBRARY_PREFIX}openblas${CMAKE_SHARED_LIBRARY_SUFFIX}.0
+            ${CMAKE_BINARY_DIR}/src/index/openblas_ep-prefix/src/openblas_ep/lib/${CMAKE_SHARED_LIBRARY_PREFIX}openblas${CMAKE_SHARED_LIBRARY_SUFFIX}.0.3
+            DESTINATION lib)
+endif()

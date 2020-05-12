@@ -26,7 +26,7 @@
 #include "utils/TimeRecorder.h"
 #include "utils/ValidationUtil.h"
 
-#ifdef MILVUS_ENABLE_PROFILING
+#ifdef ENABLE_CPU_PROFILING
 #include <gperftools/profiler.h>
 #endif
 
@@ -104,25 +104,13 @@ SearchByIDRequest::OnExecute() {
             return status;
         }
 
-        // step 6: check collection's index type supports search by id
-        if (collection_schema.engine_type_ != (int32_t)engine::EngineType::FAISS_IDMAP &&
-            collection_schema.engine_type_ != (int32_t)engine::EngineType::FAISS_BIN_IDMAP &&
-            collection_schema.engine_type_ != (int32_t)engine::EngineType::FAISS_IVFFLAT &&
-            collection_schema.engine_type_ != (int32_t)engine::EngineType::FAISS_BIN_IVFFLAT &&
-            collection_schema.engine_type_ != (int32_t)engine::EngineType::FAISS_IVFSQ8) {
-            std::string err_msg = "Index type " + std::to_string(collection_schema.engine_type_) +
-                                  " does not support SearchByID operation";
-            LOG_SERVER_ERROR_ << err_msg;
-            return Status(SERVER_UNSUPPORTED_ERROR, err_msg);
-        }
-
         rc.RecordSection("check validation");
 
-        // step 7: search vectors
+        // step 6: search vectors
         engine::ResultIds result_ids;
         engine::ResultDistances result_distances;
 
-#ifdef MILVUS_ENABLE_PROFILING
+#ifdef ENABLE_CPU_PROFILING
         std::string fname = "/tmp/search_by_id_" + CommonUtil::GetCurrentTimeStr() + ".profiling";
         ProfilerStart(fname.c_str());
 #endif
@@ -132,7 +120,7 @@ SearchByIDRequest::OnExecute() {
         status = DBWrapper::DB()->QueryByIDs(context_, collection_name_, partition_list_, (size_t)topk_, extra_params_,
                                              id_array_, result_ids, result_distances);
 
-#ifdef MILVUS_ENABLE_PROFILING
+#ifdef ENABLE_CPU_PROFILING
         ProfilerStop();
 #endif
 
@@ -145,7 +133,7 @@ SearchByIDRequest::OnExecute() {
             return Status::OK();  // empty collection
         }
 
-        // step 8: construct result array
+        // step 7: construct result array
         milvus::server::ContextChild tracer(context_, "Constructing result");
         result_.row_num_ = id_array_.size();
         result_.distance_list_.swap(result_distances);

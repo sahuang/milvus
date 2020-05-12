@@ -31,7 +31,6 @@
 
 #include "MetaConsts.h"
 #include "db/IDGenerator.h"
-#include "db/OngoingFileChecker.h"
 #include "db/Utils.h"
 #include "metrics/Metrics.h"
 #include "utils/CommonUtil.h"
@@ -185,6 +184,14 @@ static const MetaSchema TABLEFILES_SCHEMA(META_TABLEFILES, {
                                                                MetaField("flush_lsn", "BIGINT", "DEFAULT 0 NOT NULL"),
                                                            });
 
+// Fields schema
+static const MetaSchema FIELDS_SCHEMA(META_FIELDS, {
+                                                       MetaField("collection_id", "VARCHAR(255)", "NOT NULL"),
+                                                       MetaField("field_name", "VARCHAR(255)", "NOT NULL"),
+                                                       MetaField("field_type", "INT", "DEFAULT 0 NOT NULL"),
+                                                       MetaField("field_params", "VARCHAR(255)", "NOT NULL"),
+                                                   });
+
 }  // namespace
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -265,9 +272,14 @@ MySQLMetaImpl::ValidateMetaSchema() {
         throw Exception(DB_INCOMPATIB_META, "Meta Tables schema is created by Milvus old version");
     }
 
-    // verufy TableFiles
+    // verify TableFiles
     if (!validate_func(TABLEFILES_SCHEMA)) {
         throw Exception(DB_INCOMPATIB_META, "Meta TableFiles schema is created by Milvus old version");
+    }
+
+    // verify Fields
+    if (!validate_func(FIELDS_SCHEMA)) {
+        throw Exception(DB_INCOMPATIB_META, "Meta Fields schema is created by milvus old version");
     }
 }
 
@@ -377,6 +389,18 @@ MySQLMetaImpl::Initialize() {
     initialize_query_exec = InitializeQuery.exec();
     if (!initialize_query_exec) {
         std::string msg = "Failed to create meta table 'Environment' in MySQL";
+        LOG_ENGINE_ERROR_ << msg;
+        throw Exception(DB_META_TRANSACTION_FAILED, msg);
+    }
+
+    // step 10: create meta table Field
+    InitializeQuery << "CREATE TABLE IF NOT EXISTS " << FIELDS_SCHEMA.name() << " (" << FIELDS_SCHEMA.ToString() + ");";
+
+    LOG_ENGINE_DEBUG_ << "Initialize: " << InitializeQuery.str();
+
+    initialize_query_exec = InitializeQuery.exec();
+    if (!initialize_query_exec) {
+        std::string msg = "Failed to create meta table 'Fields' in MySQL";
         LOG_ENGINE_ERROR_ << msg;
         throw Exception(DB_META_TRANSACTION_FAILED, msg);
     }
@@ -517,7 +541,7 @@ MySQLMetaImpl::DescribeCollection(CollectionSchema& collection_schema) {
 }
 
 Status
-MySQLMetaImpl::HasCollection(const std::string& collection_id, bool& has_or_not) {
+MySQLMetaImpl::HasCollection(const std::string& collection_id, bool& has_or_not, bool is_root) {
     try {
         server::MetricCollector metric;
         mysqlpp::StoreQueryResult res;
@@ -533,20 +557,23 @@ MySQLMetaImpl::HasCollection(const std::string& collection_id, bool& has_or_not)
 
             mysqlpp::Query HasCollectionQuery = connectionPtr->query();
             // since collection_id is a unique column we just need to check whether it exists or not
-            HasCollectionQuery << "SELECT EXISTS"
-                               << " (SELECT 1 FROM " << META_TABLES << " WHERE table_id = " << mysqlpp::quote
-                               << collection_id << " AND state <> " << std::to_string(CollectionSchema::TO_DELETE)
-                               << ")"
-                               << " AS " << mysqlpp::quote << "check"
-                               << ";";
+            if (is_root) {
+                HasCollectionQuery << "SELECT id FROM " << META_TABLES << " WHERE table_id = " << mysqlpp::quote
+                                   << collection_id << " AND state <> " << std::to_string(CollectionSchema::TO_DELETE)
+                                   << " AND owner_table = " << mysqlpp::quote << ""
+                                   << ";";
+            } else {
+                HasCollectionQuery << "SELECT id FROM " << META_TABLES << " WHERE table_id = " << mysqlpp::quote
+                                   << collection_id << " AND state <> " << std::to_string(CollectionSchema::TO_DELETE)
+                                   << ";";
+            }
 
             LOG_ENGINE_DEBUG_ << "HasCollection: " << HasCollectionQuery.str();
 
             res = HasCollectionQuery.store();
         }  // Scoped Connection
 
-        int check = res[0]["check"];
-        has_or_not = (check == 1);
+        has_or_not = (res.num_rows() > 0);
     } catch (std::exception& e) {
         return HandleException("Failed to check collection existence", e.what());
     }
@@ -768,7 +795,7 @@ MySQLMetaImpl::CreateCollectionFile(SegmentSchema& file_schema) {
 
 Status
 MySQLMetaImpl::GetCollectionFiles(const std::string& collection_id, const std::vector<size_t>& ids,
-                                  SegmentsSchema& collection_files) {
+                                  FilesHolder& files_holder) {
     if (ids.empty()) {
         return Status::OK();
     }
@@ -830,10 +857,10 @@ MySQLMetaImpl::GetCollectionFiles(const std::string& collection_id, const std::v
             file_schema.dimension_ = collection_schema.dimension_;
 
             utils::GetCollectionFilePath(options_, file_schema);
-            collection_files.emplace_back(file_schema);
+            files_holder.MarkFile(file_schema);
         }
 
-        LOG_ENGINE_DEBUG_ << "Get collection files by id";
+        LOG_ENGINE_DEBUG_ << "Get " << res.size() << " files by id from collection " << collection_id;
         return ret;
     } catch (std::exception& e) {
         return HandleException("Failed to get collection files", e.what());
@@ -841,8 +868,7 @@ MySQLMetaImpl::GetCollectionFiles(const std::string& collection_id, const std::v
 }
 
 Status
-MySQLMetaImpl::GetCollectionFilesBySegmentId(const std::string& segment_id,
-                                             milvus::engine::meta::SegmentsSchema& collection_files) {
+MySQLMetaImpl::GetCollectionFilesBySegmentId(const std::string& segment_id, FilesHolder& files_holder) {
     try {
         mysqlpp::StoreQueryResult res;
         {
@@ -892,11 +918,11 @@ MySQLMetaImpl::GetCollectionFilesBySegmentId(const std::string& segment_id,
                 file_schema.dimension_ = collection_schema.dimension_;
 
                 utils::GetCollectionFilePath(options_, file_schema);
-                collection_files.emplace_back(file_schema);
+                files_holder.MarkFile(file_schema);
             }
         }
 
-        LOG_ENGINE_DEBUG_ << "Get collection files by segment id";
+        LOG_ENGINE_DEBUG_ << "Get " << res.size() << " files by segment id " << segment_id;
         return Status::OK();
     } catch (std::exception& e) {
         return HandleException("Failed to get collection files by segment id", e.what());
@@ -1446,6 +1472,47 @@ MySQLMetaImpl::CreatePartition(const std::string& collection_id, const std::stri
 }
 
 Status
+MySQLMetaImpl::HasPartition(const std::string& collection_id, const std::string& tag, bool& has_or_not) {
+    try {
+        server::MetricCollector metric;
+        mysqlpp::StoreQueryResult res;
+
+        // trim side-blank of tag, only compare valid characters
+        // for example: " ab cd " is treated as "ab cd"
+        std::string valid_tag = tag;
+        server::StringHelpFunctions::TrimStringBlank(valid_tag);
+
+        {
+            mysqlpp::ScopedConnection connectionPtr(*mysql_connection_pool_, safe_grab_);
+
+            bool is_null_connection = (connectionPtr == nullptr);
+            if (is_null_connection) {
+                return Status(DB_ERROR, "Failed to connect to meta server(mysql)");
+            }
+
+            mysqlpp::Query statement = connectionPtr->query();
+            statement << "SELECT table_id FROM " << META_TABLES << " WHERE owner_table = " << mysqlpp::quote
+                      << collection_id << " AND partition_tag = " << mysqlpp::quote << valid_tag << " AND state <> "
+                      << std::to_string(CollectionSchema::TO_DELETE) << ";";
+
+            LOG_ENGINE_DEBUG_ << "HasPartition: " << statement.str();
+
+            res = statement.store();
+        }  // Scoped Connection
+
+        if (res.num_rows() > 0) {
+            has_or_not = true;
+        } else {
+            has_or_not = false;
+        }
+    } catch (std::exception& e) {
+        return HandleException("Failed to lookup partition", e.what());
+    }
+
+    return Status::OK();
+}
+
+Status
 MySQLMetaImpl::DropPartition(const std::string& partition_name) {
     return DropCollection(partition_name);
 }
@@ -1547,9 +1614,7 @@ MySQLMetaImpl::GetPartitionName(const std::string& collection_id, const std::str
 }
 
 Status
-MySQLMetaImpl::FilesToSearch(const std::string& collection_id, SegmentsSchema& files) {
-    files.clear();
-
+MySQLMetaImpl::FilesToSearch(const std::string& collection_id, FilesHolder& files_holder) {
     try {
         server::MetricCollector metric;
         mysqlpp::StoreQueryResult res;
@@ -1589,6 +1654,7 @@ MySQLMetaImpl::FilesToSearch(const std::string& collection_id, SegmentsSchema& f
         }
 
         Status ret;
+        int64_t files_count = 0;
         for (auto& resRow : res) {
             SegmentSchema collection_file;
             collection_file.id_ = resRow["id"];  // implicit conversion
@@ -1608,13 +1674,17 @@ MySQLMetaImpl::FilesToSearch(const std::string& collection_id, SegmentsSchema& f
             auto status = utils::GetCollectionFilePath(options_, collection_file);
             if (!status.ok()) {
                 ret = status;
+                continue;
             }
 
-            files.emplace_back(collection_file);
+            files_holder.MarkFile(collection_file);
+            files_count++;
         }
 
-        if (res.size() > 0) {
-            LOG_ENGINE_DEBUG_ << "Collect " << res.size() << " to-search files";
+        if (files_count == 0) {
+            LOG_ENGINE_DEBUG_ << "No file to search for collection: " << collection_id;
+        } else {
+            LOG_ENGINE_DEBUG_ << "Collect " << files_count << " to-search files in collection " << collection_id;
         }
         return ret;
     } catch (std::exception& e) {
@@ -1623,9 +1693,7 @@ MySQLMetaImpl::FilesToSearch(const std::string& collection_id, SegmentsSchema& f
 }
 
 Status
-MySQLMetaImpl::FilesToMerge(const std::string& collection_id, SegmentsSchema& files) {
-    files.clear();
-
+MySQLMetaImpl::FilesToMerge(const std::string& collection_id, FilesHolder& files_holder) {
     try {
         server::MetricCollector metric;
 
@@ -1663,7 +1731,7 @@ MySQLMetaImpl::FilesToMerge(const std::string& collection_id, SegmentsSchema& fi
         }  // Scoped Connection
 
         Status ret;
-        int64_t to_merge_files = 0;
+        int64_t files_count = 0;
         for (auto& resRow : res) {
             SegmentSchema collection_file;
             collection_file.file_size_ = resRow["file_size"];
@@ -1688,14 +1756,15 @@ MySQLMetaImpl::FilesToMerge(const std::string& collection_id, SegmentsSchema& fi
             auto status = utils::GetCollectionFilePath(options_, collection_file);
             if (!status.ok()) {
                 ret = status;
+                continue;
             }
 
-            files.emplace_back(collection_file);
-            ++to_merge_files;
+            files_holder.MarkFile(collection_file);
+            files_count++;
         }
 
-        if (to_merge_files > 0) {
-            LOG_ENGINE_TRACE_ << "Collect " << to_merge_files << " to-merge files";
+        if (files_count > 0) {
+            LOG_ENGINE_DEBUG_ << "Collect " << files_count << " to-merge files in collection " << collection_id;
         }
         return ret;
     } catch (std::exception& e) {
@@ -1704,9 +1773,7 @@ MySQLMetaImpl::FilesToMerge(const std::string& collection_id, SegmentsSchema& fi
 }
 
 Status
-MySQLMetaImpl::FilesToIndex(SegmentsSchema& files) {
-    files.clear();
-
+MySQLMetaImpl::FilesToIndex(FilesHolder& files_holder) {
     try {
         server::MetricCollector metric;
         mysqlpp::StoreQueryResult res;
@@ -1735,9 +1802,10 @@ MySQLMetaImpl::FilesToIndex(SegmentsSchema& files) {
         }  // Scoped Connection
 
         Status ret;
+        int64_t files_count = 0;
         std::map<std::string, CollectionSchema> groups;
-        SegmentSchema collection_file;
         for (auto& resRow : res) {
+            SegmentSchema collection_file;
             collection_file.id_ = resRow["id"];  // implicit conversion
             resRow["table_id"].to_string(collection_file.collection_id_);
             resRow["segment_id"].to_string(collection_file.segment_id_);
@@ -1769,11 +1837,12 @@ MySQLMetaImpl::FilesToIndex(SegmentsSchema& files) {
                 ret = status;
             }
 
-            files.push_back(collection_file);
+            files_holder.MarkFile(collection_file);
+            files_count++;
         }
 
-        if (res.size() > 0) {
-            LOG_ENGINE_DEBUG_ << "Collect " << res.size() << " to-index files";
+        if (files_count > 0) {
+            LOG_ENGINE_DEBUG_ << "Collect " << files_count << " to-index files";
         }
         return ret;
     } catch (std::exception& e) {
@@ -1783,16 +1852,13 @@ MySQLMetaImpl::FilesToIndex(SegmentsSchema& files) {
 
 Status
 MySQLMetaImpl::FilesByType(const std::string& collection_id, const std::vector<int>& file_types,
-                           SegmentsSchema& files) {
+                           FilesHolder& files_holder) {
     if (file_types.empty()) {
         return Status(DB_ERROR, "file types array is empty");
     }
 
     Status ret = Status::OK();
-
     try {
-        files.clear();
-
         mysqlpp::StoreQueryResult res;
         {
             mysqlpp::ScopedConnection connectionPtr(*mysql_connection_pool_, safe_grab_);
@@ -1860,7 +1926,7 @@ MySQLMetaImpl::FilesByType(const std::string& collection_id, const std::vector<i
                     ret = status;
                 }
 
-                files.emplace_back(file_schema);
+                files_holder.MarkFile(file_schema);
 
                 int32_t file_type = resRow["file_type"];
                 switch (file_type) {
@@ -1928,9 +1994,7 @@ MySQLMetaImpl::FilesByType(const std::string& collection_id, const std::vector<i
 }
 
 Status
-MySQLMetaImpl::FilesByID(const std::vector<size_t>& ids, SegmentsSchema& files) {
-    files.clear();
-
+MySQLMetaImpl::FilesByID(const std::vector<size_t>& ids, FilesHolder& files_holder) {
     if (ids.empty()) {
         return Status::OK();
     }
@@ -1977,6 +2041,7 @@ MySQLMetaImpl::FilesByID(const std::vector<size_t>& ids, SegmentsSchema& files) 
 
         std::map<std::string, meta::CollectionSchema> collections;
         Status ret;
+        int64_t files_count = 0;
         for (auto& resRow : res) {
             SegmentSchema collection_file;
             collection_file.id_ = resRow["id"];  // implicit conversion
@@ -2002,11 +2067,14 @@ MySQLMetaImpl::FilesByID(const std::vector<size_t>& ids, SegmentsSchema& files) 
             auto status = utils::GetCollectionFilePath(options_, collection_file);
             if (!status.ok()) {
                 ret = status;
+                continue;
             }
 
-            files.emplace_back(collection_file);
+            files_holder.MarkFile(collection_file);
+            files_count++;
         }
 
+        milvus::engine::meta::SegmentsSchema& files = files_holder.HoldFiles();
         for (auto& collection_file : files) {
             CollectionSchema& collection_schema = collections[collection_file.collection_id_];
             collection_file.dimension_ = collection_schema.dimension_;
@@ -2015,10 +2083,10 @@ MySQLMetaImpl::FilesByID(const std::vector<size_t>& ids, SegmentsSchema& files) 
             collection_file.metric_type_ = collection_schema.metric_type_;
         }
 
-        if (files.empty()) {
+        if (files_count == 0) {
             LOG_ENGINE_ERROR_ << "No file to search in file id list";
         } else {
-            LOG_ENGINE_DEBUG_ << "Collect " << files.size() << " files by id";
+            LOG_ENGINE_DEBUG_ << "Collect " << files_count << " files by id";
         }
 
         return ret;
@@ -2221,7 +2289,7 @@ MySQLMetaImpl::CleanUpFilesWithTTL(uint64_t seconds /*, CleanUpFilter* filter*/)
                 collection_file.file_type_ = resRow["file_type"];
 
                 // check if the file can be deleted
-                if (OngoingFileChecker::GetInstance().IsIgnored(collection_file)) {
+                if (!FilesHolder::CanBeDeleted(collection_file)) {
                     LOG_ENGINE_DEBUG_ << "File:" << collection_file.file_id_
                                       << " currently is in use, not able to delete now";
                     continue;  // ignore this file, don't delete it
@@ -2481,7 +2549,8 @@ MySQLMetaImpl::DropAll() {
         }
 
         mysqlpp::Query statement = connectionPtr->query();
-        statement << "DROP TABLE IF EXISTS " << TABLES_SCHEMA.name() << ", " << TABLEFILES_SCHEMA.name() << ";";
+        statement << "DROP TABLE IF EXISTS " << TABLES_SCHEMA.name() << ", " << TABLEFILES_SCHEMA.name() << ", "
+                  << ENVIRONMENT_SCHEMA.name() << ", " << FIELDS_SCHEMA.name() << ";";
 
         LOG_ENGINE_DEBUG_ << "DropAll: " << statement.str();
 
@@ -2642,10 +2711,179 @@ MySQLMetaImpl::GetGlobalLastLSN(uint64_t& lsn) {
 
 Status
 MySQLMetaImpl::CreateHybridCollection(CollectionSchema& collection_schema, hybrid::FieldsSchema& fields_schema) {
+    try {
+        server::MetricCollector metric;
+        {
+            mysqlpp::ScopedConnection connectionPtr(*mysql_connection_pool_, safe_grab_);
+
+            bool is_null_connection = (connectionPtr == nullptr);
+            fiu_do_on("MySQLMetaImpl.CreateCollection.null_connection", is_null_connection = true);
+            fiu_do_on("MySQLMetaImpl.CreateCollection.throw_exception", throw std::exception(););
+            if (is_null_connection) {
+                return Status(DB_ERROR, "Failed to connect to meta server(mysql)");
+            }
+
+            mysqlpp::Query statement = connectionPtr->query();
+
+            if (collection_schema.collection_id_.empty()) {
+                NextCollectionId(collection_schema.collection_id_);
+            } else {
+                statement << "SELECT state FROM " << META_TABLES << " WHERE table_id = " << mysqlpp::quote
+                          << collection_schema.collection_id_ << ";";
+
+                LOG_ENGINE_DEBUG_ << "CreateCollection: " << statement.str();
+
+                mysqlpp::StoreQueryResult res = statement.store();
+
+                if (res.num_rows() == 1) {
+                    int state = res[0]["state"];
+                    fiu_do_on("MySQLMetaImpl.CreateCollection.schema_TO_DELETE", state = CollectionSchema::TO_DELETE);
+                    if (CollectionSchema::TO_DELETE == state) {
+                        return Status(DB_ERROR,
+                                      "Collection already exists and it is in delete state, please wait a second");
+                    } else {
+                        return Status(DB_ALREADY_EXIST, "Collection already exists");
+                    }
+                }
+            }
+
+            collection_schema.id_ = -1;
+            collection_schema.created_on_ = utils::GetMicroSecTimeStamp();
+
+            std::string id = "NULL";  // auto-increment
+            std::string& collection_id = collection_schema.collection_id_;
+            std::string state = std::to_string(collection_schema.state_);
+            std::string dimension = std::to_string(collection_schema.dimension_);
+            std::string created_on = std::to_string(collection_schema.created_on_);
+            std::string flag = std::to_string(collection_schema.flag_);
+            std::string index_file_size = std::to_string(collection_schema.index_file_size_);
+            std::string engine_type = std::to_string(collection_schema.engine_type_);
+            std::string& index_params = collection_schema.index_params_;
+            std::string metric_type = std::to_string(collection_schema.metric_type_);
+            std::string& owner_collection = collection_schema.owner_collection_;
+            std::string& partition_tag = collection_schema.partition_tag_;
+            std::string& version = collection_schema.version_;
+            std::string flush_lsn = std::to_string(collection_schema.flush_lsn_);
+
+            statement << "INSERT INTO " << META_TABLES << " VALUES(" << id << ", " << mysqlpp::quote << collection_id
+                      << ", " << state << ", " << dimension << ", " << created_on << ", " << flag << ", "
+                      << index_file_size << ", " << engine_type << ", " << mysqlpp::quote << index_params << ", "
+                      << metric_type << ", " << mysqlpp::quote << owner_collection << ", " << mysqlpp::quote
+                      << partition_tag << ", " << mysqlpp::quote << version << ", " << flush_lsn << ");";
+
+            LOG_ENGINE_DEBUG_ << "CreateHybridCollection: " << statement.str();
+
+            if (mysqlpp::SimpleResult res = statement.execute()) {
+                collection_schema.id_ = res.insert_id();  // Might need to use SELECT LAST_INSERT_ID()?
+
+                // Consume all results to avoid "Commands out of sync" error
+            } else {
+                return HandleException("Failed to create collection", statement.error());
+            }
+
+            for (auto schema : fields_schema.fields_schema_) {
+                std::string id = "NULL";
+                std::string collection_id = schema.collection_id_;
+                std::string field_name = schema.field_name_;
+                std::string field_type = std::to_string(schema.field_type_);
+                std::string field_params = schema.field_params_;
+
+                statement << "INSERT INTO " << META_FIELDS << " VALUES(" << mysqlpp::quote << collection_id << ", "
+                          << mysqlpp::quote << field_name << ", " << field_type << ", " << mysqlpp::quote << ", "
+                          << field_params << ");";
+
+                LOG_ENGINE_DEBUG_ << "Create field: " << statement.str();
+
+                if (mysqlpp::SimpleResult field_res = statement.execute()) {
+                    // TODO(yukun): need field id?
+
+                } else {
+                    return HandleException("Failed to create field table", statement.error());
+                }
+            }
+        }  // Scoped Connection
+
+        LOG_ENGINE_DEBUG_ << "Successfully create hybrid collection: " << collection_schema.collection_id_;
+        std::cout << collection_schema.collection_id_;
+        return utils::CreateCollectionPath(options_, collection_schema.collection_id_);
+    } catch (std::exception& e) {
+        return HandleException("Failed to create collection", e.what());
+    }
 }
 
 Status
 MySQLMetaImpl::DescribeHybridCollection(CollectionSchema& collection_schema, hybrid::FieldsSchema& fields_schema) {
+    try {
+        server::MetricCollector metric;
+        mysqlpp::StoreQueryResult res, field_res;
+        {
+            mysqlpp::ScopedConnection connectionPtr(*mysql_connection_pool_, safe_grab_);
+
+            bool is_null_connection = (connectionPtr == nullptr);
+            fiu_do_on("MySQLMetaImpl.DescribeCollection.null_connection", is_null_connection = true);
+            fiu_do_on("MySQLMetaImpl.DescribeCollection.throw_exception", throw std::exception(););
+            if (is_null_connection) {
+                return Status(DB_ERROR, "Failed to connect to meta server(mysql)");
+            }
+
+            mysqlpp::Query statement = connectionPtr->query();
+            statement << "SELECT id, state, dimension, created_on, flag, index_file_size, engine_type, index_params"
+                      << " , metric_type ,owner_table, partition_tag, version, flush_lsn"
+                      << " FROM " << META_TABLES << " WHERE table_id = " << mysqlpp::quote
+                      << collection_schema.collection_id_ << " AND state <> "
+                      << std::to_string(CollectionSchema::TO_DELETE) << ";";
+
+            LOG_ENGINE_DEBUG_ << "DescribeHybridCollection: " << statement.str();
+
+            res = statement.store();
+
+            mysqlpp::Query field_statement = connectionPtr->query();
+            field_statement << "SELECT collection_id, field_name, field_type, field_params"
+                            << " FROM " << META_FIELDS << " WHERE collection_id = " << mysqlpp::quote
+                            << collection_schema.collection_id_ << ";";
+
+            LOG_ENGINE_DEBUG_ << "Describe Collection Fields: " << field_statement.str();
+
+            field_res = field_statement.store();
+        }  // Scoped Connection
+
+        if (res.num_rows() == 1) {
+            const mysqlpp::Row& resRow = res[0];
+            collection_schema.id_ = resRow["id"];  // implicit conversion
+            collection_schema.state_ = resRow["state"];
+            collection_schema.dimension_ = resRow["dimension"];
+            collection_schema.created_on_ = resRow["created_on"];
+            collection_schema.flag_ = resRow["flag"];
+            collection_schema.index_file_size_ = resRow["index_file_size"];
+            collection_schema.engine_type_ = resRow["engine_type"];
+            resRow["index_params"].to_string(collection_schema.index_params_);
+            collection_schema.metric_type_ = resRow["metric_type"];
+            resRow["owner_table"].to_string(collection_schema.owner_collection_);
+            resRow["partition_tag"].to_string(collection_schema.partition_tag_);
+            resRow["version"].to_string(collection_schema.version_);
+            collection_schema.flush_lsn_ = resRow["flush_lsn"];
+        } else {
+            return Status(DB_NOT_FOUND, "Collection " + collection_schema.collection_id_ + " not found");
+        }
+
+        auto num_row = field_res.num_rows();
+        if (num_row >= 1) {
+            fields_schema.fields_schema_.resize(num_row);
+            for (uint64_t i = 0; i < num_row; ++i) {
+                const mysqlpp::Row& resRow = field_res[i];
+                resRow["collection_id"].to_string(fields_schema.fields_schema_[i].collection_id_);
+                resRow["field_name"].to_string(fields_schema.fields_schema_[i].field_name_);
+                fields_schema.fields_schema_[i].field_type_ = resRow["field_type"];
+                resRow["field_params"].to_string(fields_schema.fields_schema_[i].field_params_);
+            }
+        } else {
+            return Status(DB_NOT_FOUND, "Fields of " + collection_schema.collection_id_ + " not found");
+        }
+    } catch (std::exception& e) {
+        return HandleException("Failed to describe collection", e.what());
+    }
+
+    return Status::OK();
 }
 
 Status

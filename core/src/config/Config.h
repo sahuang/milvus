@@ -25,14 +25,6 @@ namespace server {
 
 using ConfigCallBackF = std::function<Status(const std::string&)>;
 
-#define CONFIG_CHECK(func) \
-    do {                   \
-        Status s = func;   \
-        if (!s.ok()) {     \
-            return s;      \
-        }                  \
-    } while (false)
-
 extern const char* CONFIG_NODE_DELIMITER;
 extern const char* CONFIG_VERSION;
 
@@ -46,6 +38,8 @@ extern const char* CONFIG_SERVER_DEPLOY_MODE;
 extern const char* CONFIG_SERVER_DEPLOY_MODE_DEFAULT;
 extern const char* CONFIG_SERVER_TIME_ZONE;
 extern const char* CONFIG_SERVER_TIME_ZONE_DEFAULT;
+extern const char* CONFIG_SERVER_WEB_ENABLE;
+extern const char* CONFIG_SERVER_WEB_ENABLE_DEFAULT;
 extern const char* CONFIG_SERVER_WEB_PORT;
 extern const char* CONFIG_SERVER_WEB_PORT_DEFAULT;
 
@@ -68,18 +62,19 @@ extern const char* CONFIG_STORAGE_PRIMARY_PATH;
 extern const char* CONFIG_STORAGE_PRIMARY_PATH_DEFAULT;
 extern const char* CONFIG_STORAGE_SECONDARY_PATH;
 extern const char* CONFIG_STORAGE_SECONDARY_PATH_DEFAULT;
-extern const char* CONFIG_STORAGE_S3_ENABLE;
-extern const char* CONFIG_STORAGE_S3_ENABLE_DEFAULT;
-extern const char* CONFIG_STORAGE_S3_ADDRESS;
-extern const char* CONFIG_STORAGE_S3_ADDRESS_DEFAULT;
-extern const char* CONFIG_STORAGE_S3_PORT;
-extern const char* CONFIG_STORAGE_S3_PORT_DEFAULT;
-extern const char* CONFIG_STORAGE_S3_ACCESS_KEY;
-extern const char* CONFIG_STORAGE_S3_ACCESS_KEY_DEFAULT;
-extern const char* CONFIG_STORAGE_S3_SECRET_KEY;
-extern const char* CONFIG_STORAGE_S3_SECRET_KEY_DEFAULT;
-extern const char* CONFIG_STORAGE_S3_BUCKET;
-extern const char* CONFIG_STORAGE_S3_BUCKET_DEFAULT;
+extern const char* CONFIG_STORAGE_FILE_CLEANUP_TIMEOUT;
+// extern const char* CONFIG_STORAGE_S3_ENABLE;
+// extern const char* CONFIG_STORAGE_S3_ENABLE_DEFAULT;
+// extern const char* CONFIG_STORAGE_S3_ADDRESS;
+// extern const char* CONFIG_STORAGE_S3_ADDRESS_DEFAULT;
+// extern const char* CONFIG_STORAGE_S3_PORT;
+// extern const char* CONFIG_STORAGE_S3_PORT_DEFAULT;
+// extern const char* CONFIG_STORAGE_S3_ACCESS_KEY;
+// extern const char* CONFIG_STORAGE_S3_ACCESS_KEY_DEFAULT;
+// extern const char* CONFIG_STORAGE_S3_SECRET_KEY;
+// extern const char* CONFIG_STORAGE_S3_SECRET_KEY_DEFAULT;
+// extern const char* CONFIG_STORAGE_S3_BUCKET;
+// extern const char* CONFIG_STORAGE_S3_BUCKET_DEFAULT;
 
 /* cache config */
 extern const char* CONFIG_CACHE;
@@ -107,19 +102,15 @@ extern const char* CONFIG_ENGINE_USE_BLAS_THRESHOLD;
 extern const char* CONFIG_ENGINE_USE_BLAS_THRESHOLD_DEFAULT;
 extern const char* CONFIG_ENGINE_OMP_THREAD_NUM;
 extern const char* CONFIG_ENGINE_OMP_THREAD_NUM_DEFAULT;
-extern const char* CONFIG_ENGINE_USE_AVX512;
-extern const char* CONFIG_ENGINE_USE_AVX512_DEFAULT;
+extern const char* CONFIG_ENGINE_SIMD_TYPE;
+extern const char* CONFIG_ENGINE_SIMD_TYPE_DEFAULT;
 extern const char* CONFIG_ENGINE_GPU_SEARCH_THRESHOLD;
 extern const char* CONFIG_ENGINE_GPU_SEARCH_THRESHOLD_DEFAULT;
 
 /* gpu resource config */
 extern const char* CONFIG_GPU_RESOURCE;
 extern const char* CONFIG_GPU_RESOURCE_ENABLE;
-#ifdef MILVUS_GPU_VERSION
 extern const char* CONFIG_GPU_RESOURCE_ENABLE_DEFAULT;
-#else
-extern const char* CONFIG_GPU_RESOURCE_ENABLE_DEFAULT;
-#endif
 extern const char* CONFIG_GPU_RESOURCE_CACHE_CAPACITY;
 extern const char* CONFIG_GPU_RESOURCE_CACHE_CAPACITY_DEFAULT;
 extern const char* CONFIG_GPU_RESOURCE_CACHE_THRESHOLD;
@@ -146,6 +137,30 @@ extern const int64_t CONFIG_WAL_BUFFER_SIZE_MAX;
 extern const int64_t CONFIG_WAL_BUFFER_SIZE_MIN;
 extern const char* CONFIG_WAL_WAL_PATH;
 extern const char* CONFIG_WAL_WAL_PATH_DEFAULT;
+
+/* logs config */
+extern const char* CONFIG_LOGS;
+extern const char* CONFIG_LOGS_TRACE_ENABLE;
+extern const char* CONFIG_LOGS_TRACE_ENABLE_DEFAULT;
+extern const char* CONFIG_LOGS_DEBUG_ENABLE;
+extern const char* CONFIG_LOGS_DEBUG_ENABLE_DEFAULT;
+extern const char* CONFIG_LOGS_INFO_ENABLE;
+extern const char* CONFIG_LOGS_INFO_ENABLE_DEFAULT;
+extern const char* CONFIG_LOGS_WARNING_ENABLE;
+extern const char* CONFIG_LOGS_WARNING_ENABLE_DEFAULT;
+extern const char* CONFIG_LOGS_ERROR_ENABLE;
+extern const char* CONFIG_LOGS_ERROR_ENABLE_DEFAULT;
+extern const char* CONFIG_LOGS_FATAL_ENABLE;
+extern const char* CONFIG_LOGS_FATAL_ENABLE_DEFAULT;
+extern const char* CONFIG_LOGS_PATH;
+extern const char* CONFIG_LOGS_MAX_LOG_FILE_SIZE;
+extern const char* CONFIG_LOGS_MAX_LOG_FILE_SIZE_DEFAULT;
+extern const int64_t CONFIG_LOGS_MAX_LOG_FILE_SIZE_MAX;
+extern const int64_t CONFIG_LOGS_MAX_LOG_FILE_SIZE_MIN;
+extern const char* CONFIG_LOGS_DELETE_EXCEEDS;
+extern const char* CONFIG_LOGS_DELETE_EXCEEDS_DEFAULT;
+extern const int64_t CONFIG_LOGS_DELETE_EXCEEDS_MAX;
+extern const int64_t CONFIG_LOGS_DELETE_EXCEEDS_MIN;
 
 class Config {
  private:
@@ -208,6 +223,8 @@ class Config {
     Status
     CheckServerConfigTimeZone(const std::string& value);
     Status
+    CheckServerConfigWebEnable(const std::string& value);
+    Status
     CheckServerConfigWebPort(const std::string& value);
 
     /* db config */
@@ -228,17 +245,19 @@ class Config {
     Status
     CheckStorageConfigSecondaryPath(const std::string& value);
     Status
-    CheckStorageConfigS3Enable(const std::string& value);
-    Status
-    CheckStorageConfigS3Address(const std::string& value);
-    Status
-    CheckStorageConfigS3Port(const std::string& value);
-    Status
-    CheckStorageConfigS3AccessKey(const std::string& value);
-    Status
-    CheckStorageConfigS3SecretKey(const std::string& value);
-    Status
-    CheckStorageConfigS3Bucket(const std::string& value);
+    CheckStorageConfigFileCleanupTimeout(const std::string& value);
+    // Status
+    // CheckStorageConfigS3Enable(const std::string& value);
+    // Status
+    // CheckStorageConfigS3Address(const std::string& value);
+    // Status
+    // CheckStorageConfigS3Port(const std::string& value);
+    // Status
+    // CheckStorageConfigS3AccessKey(const std::string& value);
+    // Status
+    // CheckStorageConfigS3SecretKey(const std::string& value);
+    // Status
+    // CheckStorageConfigS3Bucket(const std::string& value);
 
     /* metric config */
     Status
@@ -264,7 +283,7 @@ class Config {
     Status
     CheckEngineConfigOmpThreadNum(const std::string& value);
     Status
-    CheckEngineConfigUseAVX512(const std::string& value);
+    CheckEngineConfigSimdType(const std::string& value);
 
 #ifdef MILVUS_GPU_VERSION
     Status
@@ -297,6 +316,26 @@ class Config {
     Status
     CheckWalConfigWalPath(const std::string& value);
 
+    /* logs config */
+    Status
+    CheckLogsTraceEnable(const std::string& value);
+    Status
+    CheckLogsDebugEnable(const std::string& value);
+    Status
+    CheckLogsInfoEnable(const std::string& value);
+    Status
+    CheckLogsWarningEnable(const std::string& value);
+    Status
+    CheckLogsErrorEnable(const std::string& value);
+    Status
+    CheckLogsFatalEnable(const std::string& value);
+    Status
+    CheckLogsPath(const std::string& value);
+    Status
+    CheckLogsMaxLogFileSize(const std::string& value);
+    Status
+    CheckLogsDeleteExceeds(const std::string& value);
+
     std::string
     GetConfigStr(const std::string& parent_key, const std::string& child_key, const std::string& default_value = "");
     std::string
@@ -319,6 +358,8 @@ class Config {
     Status
     GetServerConfigTimeZone(std::string& value);
     Status
+    GetServerConfigWebEnable(bool& value);
+    Status
     GetServerConfigWebPort(std::string& value);
 
     /* db config */
@@ -339,17 +380,19 @@ class Config {
     Status
     GetStorageConfigSecondaryPath(std::string& value);
     Status
-    GetStorageConfigS3Enable(bool& value);
-    Status
-    GetStorageConfigS3Address(std::string& value);
-    Status
-    GetStorageConfigS3Port(std::string& value);
-    Status
-    GetStorageConfigS3AccessKey(std::string& value);
-    Status
-    GetStorageConfigS3SecretKey(std::string& value);
-    Status
-    GetStorageConfigS3Bucket(std::string& value);
+    GetStorageConfigFileCleanupTimeup(int64_t& value);
+    // Status
+    // GetStorageConfigS3Enable(bool& value);
+    // Status
+    // GetStorageConfigS3Address(std::string& value);
+    // Status
+    // GetStorageConfigS3Port(std::string& value);
+    // Status
+    // GetStorageConfigS3AccessKey(std::string& value);
+    // Status
+    // GetStorageConfigS3SecretKey(std::string& value);
+    // Status
+    // GetStorageConfigS3Bucket(std::string& value);
 
     /* metric config */
     Status
@@ -375,7 +418,7 @@ class Config {
     Status
     GetEngineConfigOmpThreadNum(int64_t& value);
     Status
-    GetEngineConfigUseAVX512(bool& value);
+    GetEngineConfigSimdType(std::string& value);
 
 #ifdef MILVUS_GPU_VERSION
     Status
@@ -408,6 +451,26 @@ class Config {
     Status
     GetWalConfigWalPath(std::string& value);
 
+    /* logs config */
+    Status
+    GetLogsTraceEnable(bool& value);
+    Status
+    GetLogsDebugEnable(bool& value);
+    Status
+    GetLogsInfoEnable(bool& value);
+    Status
+    GetLogsWarningEnable(bool& value);
+    Status
+    GetLogsErrorEnable(bool& value);
+    Status
+    GetLogsFatalEnable(bool& value);
+    Status
+    GetLogsPath(std::string& value);
+    Status
+    GetLogsMaxLogFileSize(int64_t& value);
+    Status
+    GetLogsDeleteExceeds(int64_t& value);
+
     Status
     GetServerRestartRequired(bool& required);
 
@@ -421,6 +484,8 @@ class Config {
     SetServerConfigDeployMode(const std::string& value);
     Status
     SetServerConfigTimeZone(const std::string& value);
+    Status
+    SetServerConfigWebEnable(const std::string& value);
     Status
     SetServerConfigWebPort(const std::string& value);
 
@@ -442,17 +507,19 @@ class Config {
     Status
     SetStorageConfigSecondaryPath(const std::string& value);
     Status
-    SetStorageConfigS3Enable(const std::string& value);
-    Status
-    SetStorageConfigS3Address(const std::string& value);
-    Status
-    SetStorageConfigS3Port(const std::string& value);
-    Status
-    SetStorageConfigS3AccessKey(const std::string& value);
-    Status
-    SetStorageConfigS3SecretKey(const std::string& value);
-    Status
-    SetStorageConfigS3Bucket(const std::string& value);
+    SetStorageConfigFileCleanupTimeout(const std::string& value);
+    // Status
+    // SetStorageConfigS3Enable(const std::string& value);
+    // Status
+    // SetStorageConfigS3Address(const std::string& value);
+    // Status
+    // SetStorageConfigS3Port(const std::string& value);
+    // Status
+    // SetStorageConfigS3AccessKey(const std::string& value);
+    // Status
+    // SetStorageConfigS3SecretKey(const std::string& value);
+    // Status
+    // SetStorageConfigS3Bucket(const std::string& value);
 
     /* metric config */
     Status
@@ -478,22 +545,7 @@ class Config {
     Status
     SetEngineConfigOmpThreadNum(const std::string& value);
     Status
-    SetEngineConfigUseAVX512(const std::string& value);
-
-    /* tracing config */
-    Status
-    SetTracingConfigJsonConfigPath(const std::string& value);
-
-    /* wal config */
-    Status
-    SetWalConfigEnable(const std::string& value);
-    Status
-    SetWalConfigRecoveryErrorIgnore(const std::string& value);
-    Status
-    SetWalConfigBufferSize(const std::string& value);
-    Status
-    SetWalConfigWalPath(const std::string& value);
-
+    SetEngineConfigSimdType(const std::string& value);
 #ifdef MILVUS_GPU_VERSION
     Status
     SetEngineConfigGpuSearchThreshold(const std::string& value);
@@ -510,6 +562,40 @@ class Config {
     Status
     SetGpuResourceConfigBuildIndexResources(const std::string& value);
 #endif
+
+    /* tracing config */
+    Status
+    SetTracingConfigJsonConfigPath(const std::string& value);
+
+    /* wal config */
+    Status
+    SetWalConfigEnable(const std::string& value);
+    Status
+    SetWalConfigRecoveryErrorIgnore(const std::string& value);
+    Status
+    SetWalConfigBufferSize(const std::string& value);
+    Status
+    SetWalConfigWalPath(const std::string& value);
+
+    /* logs config */
+    Status
+    SetLogsTraceEnable(const std::string& value);
+    Status
+    SetLogsDebugEnable(const std::string& value);
+    Status
+    SetLogsInfoEnable(const std::string& value);
+    Status
+    SetLogsWarningEnable(const std::string& value);
+    Status
+    SetLogsErrorEnable(const std::string& value);
+    Status
+    SetLogsFatalEnable(const std::string& value);
+    Status
+    SetLogsPath(const std::string& value);
+    Status
+    SetLogsMaxLogFileSize(const std::string& value);
+    Status
+    SetLogsDeleteExceeds(const std::string& value);
 
  private:
     bool restart_required_ = false;

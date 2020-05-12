@@ -10,10 +10,10 @@
 # or implied. See the License for the specific language governing permissions and limitations under the License.
 
 set(KNOWHERE_THIRDPARTY_DEPENDENCIES
-
         Arrow
         FAISS
         GTest
+        OpenBLAS
         MKL
         )
 
@@ -31,6 +31,8 @@ macro(build_dependency DEPENDENCY_NAME)
         build_arrow()
     elseif ("${DEPENDENCY_NAME}" STREQUAL "GTest")
         build_gtest()
+    elseif ("${DEPENDENCY_NAME}" STREQUAL "OpenBLAS")
+        build_openblas()
     elseif ("${DEPENDENCY_NAME}" STREQUAL "FAISS")
         build_faiss()
     elseif ("${DEPENDENCY_NAME}" STREQUAL "MKL")
@@ -217,6 +219,13 @@ else ()
             "https://github.com/google/googletest/archive/release-${GTEST_VERSION}.tar.gz")
 endif ()
 
+if (DEFINED ENV{KNOWHERE_OPENBLAS_URL})
+    set(OPENBLAS_SOURCE_URL "$ENV{KNOWHERE_OPENBLAS_URL}")
+else ()
+    set(OPENBLAS_SOURCE_URL
+            "https://github.com/xianyi/OpenBLAS/archive/v${OPENBLAS_VERSION}.tar.gz")
+endif ()
+
 # ----------------------------------------------------------------------
 # ARROW
 set(ARROW_PREFIX "${INDEX_BINARY_DIR}/arrow_ep-prefix/src/arrow_ep/cpp")
@@ -302,6 +311,74 @@ if (KNOWHERE_WITH_ARROW AND NOT TARGET arrow_ep)
     link_directories(SYSTEM ${ARROW_LIB_DIR})
     include_directories(SYSTEM ${ARROW_INCLUDE_DIR})
 endif ()
+
+# ----------------------------------------------------------------------
+# OpenBLAS
+set(OPENBLAS_PREFIX "${INDEX_BINARY_DIR}/openblas_ep-prefix/src/openblas_ep")
+macro(build_openblas)
+    message(STATUS "Building OpenBLAS-${OPENBLAS_VERSION} from source")
+    set(OpenBLAS_INCLUDE_DIR "${OPENBLAS_PREFIX}/include")
+    set(OpenBLAS_LIB_DIR "${OPENBLAS_PREFIX}/lib")
+    set(OPENBLAS_SHARED_LIB
+            "${OPENBLAS_PREFIX}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}openblas${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    set(OPENBLAS_STATIC_LIB
+            "${OPENBLAS_PREFIX}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    set(OPENBLAS_CMAKE_ARGS
+            ${EP_COMMON_CMAKE_ARGS}
+            -DCMAKE_BUILD_TYPE=Release
+            -DBUILD_SHARED_LIBS=ON
+            -DBUILD_STATIC_LIBS=ON
+            -DTARGET=CORE2
+            -DDYNAMIC_ARCH=1
+            -DDYNAMIC_OLDER=1
+            -DUSE_THREAD=0
+            -DUSE_OPENMP=0
+            -DFC=gfortran
+            -DCC=gcc
+            -DINTERFACE64=0
+            -DNUM_THREADS=128
+            -DNO_LAPACKE=1
+            "-DVERSION=${OPENBLAS_VERSION}"
+            "-DCMAKE_INSTALL_PREFIX=${OPENBLAS_PREFIX}"
+            -DCMAKE_INSTALL_LIBDIR=lib)
+
+    externalproject_add(openblas_ep
+            URL
+            ${OPENBLAS_SOURCE_URL}
+            ${EP_LOG_OPTIONS}
+            CMAKE_ARGS
+            ${OPENBLAS_CMAKE_ARGS}
+            BUILD_COMMAND
+            ${MAKE}
+            ${MAKE_BUILD_ARGS}
+            BUILD_IN_SOURCE
+            1
+            INSTALL_COMMAND
+            ${MAKE}
+            PREFIX=${OPENBLAS_PREFIX}
+            install
+            BUILD_BYPRODUCTS
+            ${OPENBLAS_SHARED_LIB}
+            ${OPENBLAS_STATIC_LIB})
+
+    file(MAKE_DIRECTORY "${OpenBLAS_INCLUDE_DIR}")
+    add_library(openblas SHARED IMPORTED)
+    set_target_properties(
+            openblas
+            PROPERTIES
+            IMPORTED_LOCATION "${OPENBLAS_SHARED_LIB}"
+            LIBRARY_OUTPUT_NAME "openblas"
+            INTERFACE_INCLUDE_DIRECTORIES "${OpenBLAS_INCLUDE_DIR}")
+    add_dependencies(openblas openblas_ep)
+    get_target_property(OpenBLAS_INCLUDE_DIR openblas INTERFACE_INCLUDE_DIRECTORIES)
+    set(OpenBLAS_LIBRARIES "${OPENBLAS_SHARED_LIB}")
+endmacro()
+
+if (KNOWHERE_WITH_OPENBLAS)
+    resolve_dependency(OpenBLAS)
+    include_directories(SYSTEM "${OpenBLAS_INCLUDE_DIR}")
+    link_directories(SYSTEM "${OpenBLAS_LIB_DIR}")
+endif()
 
 # ----------------------------------------------------------------------
 # Google gtest
@@ -446,8 +523,13 @@ macro(build_faiss)
                 )
     else ()
         message(STATUS "Build Faiss with OpenBlas/LAPACK")
-        set(FAISS_CONFIGURE_ARGS ${FAISS_CONFIGURE_ARGS}
-                "LDFLAGS=-L${OPENBLAS_PREFIX}/lib -L${LAPACK_PREFIX}/lib")
+        if(OpenBLAS_FOUND)
+            set(FAISS_CONFIGURE_ARGS ${FAISS_CONFIGURE_ARGS}
+                "LDFLAGS=-L${OpenBLAS_LIB_DIR}")
+        else()
+            set(FAISS_CONFIGURE_ARGS ${FAISS_CONFIGURE_ARGS}
+                "LDFLAGS=-L${OPENBLAS_PREFIX}/lib")
+        endif()
     endif ()
 
     if (KNOWHERE_GPU_VERSION)
@@ -498,6 +580,11 @@ macro(build_faiss)
                 ${FAISS_STATIC_LIB})
     endif ()
 
+    if(NOT OpenBLAS_FOUND)
+        message("add faiss dependencies: openblas_ep")
+        ExternalProject_Add_StepDependencies(faiss_ep configure openblas_ep)
+    endif()
+
     file(MAKE_DIRECTORY "${FAISS_INCLUDE_DIR}")
     add_library(faiss STATIC IMPORTED)
 
@@ -516,9 +603,8 @@ macro(build_faiss)
         set_target_properties(
                 faiss
                 PROPERTIES
-                INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+                INTERFACE_LINK_LIBRARIES "${OpenBLAS_LIBRARIES}")
     endif ()
-
 
     add_dependencies(faiss faiss_ep)
 
@@ -529,15 +615,7 @@ if (KNOWHERE_WITH_FAISS AND NOT TARGET faiss_ep)
     if (FAISS_WITH_MKL)
         resolve_dependency(MKL)
     else ()
-        #    set(BLA_STATIC ON)
-        set(BLA_VENDOR OpenBLAS)
-        find_package(BLAS REQUIRED)
-        #        message(STATUS ${BLAS_LINKER_FLAGS})
-        #        message(STATUS ${BLAS_LIBRARIES})
-        find_package(LAPACK REQUIRED)
-        #        message(STATUS ${LAPACK_LINKER_FLAGS})
-        #        message(STATUS ${LAPACK_LIBRARIES})
-
+        message("faiss with no mkl")
     endif ()
 
     resolve_dependency(FAISS)

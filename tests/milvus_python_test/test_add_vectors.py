@@ -1,4 +1,5 @@
 import time
+import pdb
 import threading
 import logging
 import threading
@@ -520,17 +521,17 @@ class TestAddBase:
             assert status.OK()
             assert len(ids) == nq
 
-    @pytest.mark.level(2)
-    def test_add_vectors_without_connect(self, dis_connect, collection):
-        '''
-        target: test add vectors without connection
-        method: create collection and add vectors in it, check if added successfully
-        expected: raise exception
-        '''
-        nq = 5
-        vectors = gen_vectors(nq, dim)
-        with pytest.raises(Exception) as e:
-            status, ids = dis_connect.add_vectors(collection, vectors)
+    # @pytest.mark.level(2)
+    # def test_add_vectors_without_connect(self, dis_connect, collection):
+    #     '''
+    #     target: test add vectors without connection
+    #     method: create collection and add vectors in it, check if added successfully
+    #     expected: raise exception
+    #     '''
+    #     nq = 5
+    #     vectors = gen_vectors(nq, dim)
+    #     with pytest.raises(Exception) as e:
+    #         status, ids = dis_connect.add_vectors(collection, vectors)
 
     def test_add_collection_not_existed(self, connect):
         '''
@@ -601,12 +602,11 @@ class TestAddBase:
         processes = []
         def add():
             milvus = get_milvus(host=args["ip"], port=args["port"], handler=args["handler"])
-            milvus.connect(uri=uri)
             i = 0
             while i < loop_num:
                 status, ids = milvus.add_vectors(collection, vector)
                 i = i + 1
-            milvus.disconnect()
+            # milvus.disconnect()
         for i in range(process_num):
             p = Process(target=add, args=())
             processes.append(p)
@@ -615,7 +615,7 @@ class TestAddBase:
         for p in processes:
             p.join()
         time.sleep(2)
-        status, count = milvus.count_collection(collection)
+        status, count = milvus.count_entities(collection)
         assert count == process_num * loop_num
 
     @pytest.mark.level(2)
@@ -624,7 +624,7 @@ class TestAddBase:
         '''
         target: test collection rows_count is correct or not with multi threading
         method: create collection and add vectors in it(idmap),
-            assert the value returned by count_collection method is equal to length of vectors
+            assert the value returned by count_entities method is equal to length of vectors
         expected: the count is equal to the length of vectors
         '''
         if args["handler"] == "HTTP":
@@ -652,7 +652,7 @@ class TestAddBase:
             x.start()
         for th in threads:
             th.join()
-        status, res = milvus.count_collection(collection)
+        status, res = milvus.count_entities(collection)
         assert res == thread_num * nb
 
     def test_add_vector_multi_collections(self, connect):
@@ -676,6 +676,126 @@ class TestAddBase:
             for i in range(20):
                 status, ids = connect.add_vectors(collection_name=collection_list[i], records=vectors)
                 assert status.OK()
+
+class TestAddAsync:
+    @pytest.fixture(scope="function", autouse=True)
+    def skip_http_check(self, args):
+        if args["handler"] == "HTTP":
+            pytest.skip("skip in http mode")
+
+    @pytest.fixture(
+        scope="function",
+        params=[
+            1,
+            1000
+        ],
+    )
+    def insert_count(self, request):
+        yield request.param
+
+    def check_status(self, status, result):
+        logging.getLogger().info("In callback check status")
+        assert status.OK()
+
+    def check_status_not_ok(self, status, result):
+        logging.getLogger().info("In callback check status")
+        assert not status.OK()
+
+
+    def test_insert_async(self, connect, collection, insert_count):
+        '''
+        target: test add vectors with different length of vectors
+        method: set different vectors as add method params
+        expected: length of ids is equal to the length of vectors
+        '''
+        nb = insert_count
+        insert_vec_list = gen_vectors(nb, dim)
+        future = connect.add_vectors(collection, insert_vec_list, _async=True)
+        status, ids = future.result()
+        connect.flush([collection])
+        assert len(ids) == nb
+        assert status.OK()
+
+    @pytest.mark.level(2)
+    def test_insert_async_false(self, connect, collection, insert_count):
+        '''
+        target: test add vectors with different length of vectors
+        method: set different vectors as add method params
+        expected: length of ids is equal to the length of vectors
+        '''
+        nb = insert_count
+        insert_vec_list = gen_vectors(nb, dim)
+        status, ids = connect.add_vectors(collection, insert_vec_list, _async=False)
+        connect.flush([collection])
+        assert len(ids) == nb
+        assert status.OK()
+
+    def test_insert_async_callback(self, connect, collection, insert_count):
+        '''
+        target: test add vectors with different length of vectors
+        method: set different vectors as add method params
+        expected: length of ids is equal to the length of vectors
+        '''
+        nb = insert_count
+        insert_vec_list = gen_vectors(nb, dim)
+        future = connect.add_vectors(collection, insert_vec_list, _async=True, _callback=self.check_status)
+        future.done()
+
+    @pytest.mark.level(2)
+    def test_insert_async_long(self, connect, collection):
+        '''
+        target: test add vectors with different length of vectors
+        method: set different vectors as add method params
+        expected: length of ids is equal to the length of vectors
+        '''
+        nb = 50000
+        insert_vec_list = gen_vectors(nb, dim)
+        future = connect.add_vectors(collection, insert_vec_list, _async=True, _callback=self.check_status)
+        status, result = future.result()
+        assert status.OK()
+        assert len(result) == nb 
+        connect.flush([collection])
+        status, count = connect.count_entities(collection)
+        assert status.OK()
+        logging.getLogger().info(status)
+        logging.getLogger().info(count)
+        assert count == nb
+
+    def test_insert_async_callback_timeout(self, connect, collection):
+        '''
+        target: test add vectors with different length of vectors
+        method: set different vectors as add method params
+        expected: length of ids is equal to the length of vectors
+        '''
+        nb = 100000
+        insert_vec_list = gen_vectors(nb, dim)
+        future = connect.add_vectors(collection, insert_vec_list, _async=True, _callback=self.check_status, timeout=1)
+        future.done()
+
+    def test_insert_async_invalid_params(self, connect, collection):
+        '''
+        target: test add vectors with different length of vectors
+        method: set different vectors as add method params
+        expected: length of ids is equal to the length of vectors
+        '''
+        insert_vec_list = gen_vectors(nb, dim)
+        collection_new = gen_unique_str()
+        future = connect.add_vectors(collection_new, insert_vec_list, _async=True)
+        status, result = future.result()
+        assert not status.OK()
+
+    # TODO: add assertion
+    def test_insert_async_invalid_params_raise_exception(self, connect, collection):
+        '''
+        target: test add vectors with different length of vectors
+        method: set different vectors as add method params
+        expected: length of ids is equal to the length of vectors
+        '''
+        insert_vec_list = []
+        collection_new = gen_unique_str()
+        with pytest.raises(Exception) as e:
+            future = connect.add_vectors(collection_new, insert_vec_list, _async=True)
+
 
 class TestAddIP:
     """
@@ -1119,17 +1239,17 @@ class TestAddIP:
         assert status.OK()
         assert len(ids) == nq
 
-    @pytest.mark.level(2)
-    def test_add_vectors_without_connect(self, dis_connect, ip_collection):
-        '''
-        target: test add vectors without connection
-        method: create collection and add vectors in it, check if added successfully
-        expected: raise exception
-        '''
-        nq = 5
-        vectors = gen_vectors(nq, dim)
-        with pytest.raises(Exception) as e:
-            status, ids = dis_connect.add_vectors(ip_collection, vectors)
+    # @pytest.mark.level(2)
+    # def test_add_vectors_without_connect(self, dis_connect, ip_collection):
+    #     '''
+    #     target: test add vectors without connection
+    #     method: create collection and add vectors in it, check if added successfully
+    #     expected: raise exception
+    #     '''
+    #     nq = 5
+    #     vectors = gen_vectors(nq, dim)
+    #     with pytest.raises(Exception) as e:
+    #         status, ids = dis_connect.add_vectors(ip_collection, vectors)
 
     def test_add_vector_dim_not_matched(self, connect, ip_collection):
         '''

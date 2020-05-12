@@ -51,17 +51,25 @@ HasPartitionRequest::OnExecute() {
             return status;
         }
 
-        std::vector<engine::meta::CollectionSchema> schema_array;
-        status = DBWrapper::DB()->ShowPartitions(collection_name_, schema_array);
+        // only process root collection, ignore partition collection
+        engine::meta::CollectionSchema collection_schema;
+        collection_schema.collection_id_ = collection_name_;
+        status = DBWrapper::DB()->DescribeCollection(collection_schema);
         if (!status.ok()) {
-            return status;
+            if (status.code() == DB_NOT_FOUND) {
+                return Status(SERVER_COLLECTION_NOT_EXIST, CollectionNotExistMsg(collection_name_));
+            } else {
+                return status;
+            }
+        } else {
+            if (!collection_schema.owner_collection_.empty()) {
+                return Status(SERVER_INVALID_COLLECTION_NAME, CollectionNotExistMsg(collection_name_));
+            }
         }
 
-        for (auto& schema : schema_array) {
-            if (schema.partition_tag_ == partition_tag_) {
-                has_partition_ = true;
-                break;
-            }
+        status = DBWrapper::DB()->HasPartition(collection_name_, partition_tag_, has_partition_);
+        if (!status.ok()) {
+            return status;
         }
     } catch (std::exception& ex) {
         return Status(SERVER_UNEXPECTED_ERROR, ex.what());
