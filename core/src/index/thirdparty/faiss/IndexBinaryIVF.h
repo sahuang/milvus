@@ -156,7 +156,7 @@ struct IndexBinaryIVF : IndexBinary {
      * `store_pairs` set.
      */
     virtual void reconstruct_from_offset(idx_t list_no, idx_t offset,
-                                         uint8_t* recons) const;
+                                         uint8_t* recons, const float *original_data = nullptr) const;
 
 
     /// Dataset manipulation functions

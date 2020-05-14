@@ -156,7 +156,7 @@ void IndexIVFPQR::search_preassigned (idx_t n, const float *x, idx_t k,
 
                 // 2nd level residual
                 const uint8_t * l2code =
-                    invlists->get_single_code (list_no, ofs);
+                    invlists->get_single_code (list_no, ofs, nullptr);
 
                 pq.decode (l2code, residual_2);
                 for (int l = 0; l < d; l++)
@@ -184,9 +184,9 @@ void IndexIVFPQR::search_preassigned (idx_t n, const float *x, idx_t k,
 }
 
 void IndexIVFPQR::reconstruct_from_offset (int64_t list_no, int64_t offset,
-                                           float* recons) const
+                                           float* recons, const float *original_data) const
 {
-    IndexIVFPQ::reconstruct_from_offset (list_no, offset, recons);
+    IndexIVFPQ::reconstruct_from_offset (list_no, offset, recons, original_data);
 
     idx_t id = invlists->get_single_id (list_no, offset);
     assert (0 <= id && id < ntotal);

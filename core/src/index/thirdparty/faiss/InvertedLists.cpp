@@ -94,26 +94,27 @@ void InvertedLists::release_codes (size_t, const uint8_t *) const
 void InvertedLists::release_ids (size_t, const idx_t *) const
 {}
 
-void InvertedLists::prefetch_lists (const idx_t *, int) const
-{}
-
-const uint8_t * InvertedLists::get_single_code (
-                   size_t list_no, size_t offset) const
+void InvertedLists::prefetch_lists (const idx_t *, int, const uint8_t *original_codes) const
 {
-    assert (offset < list_size (list_no));
-    return get_codes(list_no) + offset * code_size;
+    printf("Did nothing\n");
 }
 
-size_t InvertedLists::add_entry (size_t list_no, idx_t theid,
-                                 const uint8_t *code)
+const uint8_t * InvertedLists::get_single_code (
+                   size_t list_no, size_t offset, const uint8_t *original_codes) const
 {
-    return add_entries (list_no, 1, &theid, code);
+    assert (offset < list_size (list_no));
+    return get_codes(list_no, original_codes) + offset * code_size;
+}
+
+size_t InvertedLists::add_entry (size_t list_no, idx_t theid)
+{
+    return add_entries (list_no, 1, &theid);
 }
 
 void InvertedLists::update_entry (size_t list_no, size_t offset,
-                                        idx_t id, const uint8_t *code)
+                                        idx_t id)
 {
-    update_entries (list_no, offset, 1, &id, code);
+    update_entries (list_no, offset, 1, &id);
 }
 
 InvertedLists* InvertedLists::to_readonly() {
@@ -137,16 +138,14 @@ void InvertedLists::merge_from (InvertedLists *oivf, size_t add_id) {
         size_t list_size = oivf->list_size (i);
         ScopedIds ids (oivf, i);
         if (add_id == 0) {
-            add_entries (i, list_size, ids.get (),
-                         ScopedCodes (oivf, i).get());
+            add_entries (i, list_size, ids.get ());
         } else {
             std::vector <idx_t> new_ids (list_size);
 
             for (size_t j = 0; j < list_size; j++) {
                 new_ids [j] = ids[j] + add_id;
             }
-            add_entries (i, list_size, new_ids.data(),
-                                   ScopedCodes (oivf, i).get());
+            add_entries (i, list_size, new_ids.data());
         }
         oivf->resize (i, 0);
     }
@@ -195,20 +194,20 @@ ArrayInvertedLists::ArrayInvertedLists (size_t nlist, size_t code_size):
     InvertedLists (nlist, code_size)
 {
     ids.resize (nlist);
-    codes.resize (nlist);
+    // codes.resize (nlist);
 }
 
 size_t ArrayInvertedLists::add_entries (
            size_t list_no, size_t n_entry,
-           const idx_t* ids_in, const uint8_t *code)
+           const idx_t* ids_in)
 {
     if (n_entry == 0) return 0;
     assert (list_no < nlist);
     size_t o = ids [list_no].size();
     ids [list_no].resize (o + n_entry);
     memcpy (&ids[list_no][o], ids_in, sizeof (ids_in[0]) * n_entry);
-    codes [list_no].resize ((o + n_entry) * code_size);
-    memcpy (&codes[list_no][o * code_size], code, code_size * n_entry);
+    // codes [list_no].resize ((o + n_entry) * code_size);
+    // memcpy (&codes[list_no][o * code_size], code, code_size * n_entry);
     return o;
 }
 
@@ -218,10 +217,15 @@ size_t ArrayInvertedLists::list_size(size_t list_no) const
     return ids[list_no].size();
 }
 
-const uint8_t * ArrayInvertedLists::get_codes (size_t list_no) const
+const uint8_t * ArrayInvertedLists::get_codes (size_t list_no, const uint8_t *original_codes) const
 {
     assert (list_no < nlist);
-    return codes[list_no].data();
+    printf("Get codes %ld with size %ld\n", list_no, ids[list_no].size());
+    std::vector<uint8_t> res;
+    for (size_t i = 0; i < ids[list_no].size(); i++) {
+        res.push_back(original_codes[ids[list_no][i]]);
+    }
+    return res.data();
 }
 
 
@@ -234,17 +238,17 @@ const InvertedLists::idx_t * ArrayInvertedLists::get_ids (size_t list_no) const
 void ArrayInvertedLists::resize (size_t list_no, size_t new_size)
 {
     ids[list_no].resize (new_size);
-    codes[list_no].resize (new_size * code_size);
+    // codes[list_no].resize (new_size * code_size);
 }
 
 void ArrayInvertedLists::update_entries (
       size_t list_no, size_t offset, size_t n_entry,
-      const idx_t *ids_in, const uint8_t *codes_in)
+      const idx_t *ids_in)
 {
     assert (list_no < nlist);
     assert (n_entry + offset <= ids[list_no].size());
     memcpy (&ids[list_no][offset], ids_in, sizeof(ids_in[0]) * n_entry);
-    memcpy (&codes[list_no][offset * code_size], codes_in, code_size * n_entry);
+    // memcpy (&codes[list_no][offset * code_size], codes_in, code_size * n_entry);
 }
 
 InvertedLists* ArrayInvertedLists::to_readonly() {
@@ -272,7 +276,7 @@ ReadOnlyArrayInvertedLists::ReadOnlyArrayInvertedLists(size_t nlist,
     readonly_offset.reserve(nlist);
 
 #ifdef USE_CPU
-    readonly_codes.reserve(total_size * code_size);
+    // readonly_codes.reserve(total_size * code_size);
     readonly_ids.reserve(total_size);
 #endif
 
@@ -300,25 +304,25 @@ ReadOnlyArrayInvertedLists::ReadOnlyArrayInvertedLists(const ArrayInvertedLists&
         auto& list_ids = other.ids[i];
         readonly_ids.insert(readonly_ids.end(), list_ids.begin(), list_ids.end());
 
-        auto& list_codes = other.codes[i];
-        readonly_codes.insert(readonly_codes.end(), list_codes.begin(), list_codes.end());
+        // auto& list_codes = other.codes[i];
+        // readonly_codes.insert(readonly_codes.end(), list_codes.begin(), list_codes.end());
     }
 #else
     size_t ids_size = offset * sizeof(idx_t);
     size_t codes_size = offset * (this->code_size) * sizeof(uint8_t);
-    pin_readonly_codes = std::make_shared<PageLockMemory>(codes_size);
+    // pin_readonly_codes = std::make_shared<PageLockMemory>(codes_size);
     pin_readonly_ids = std::make_shared<PageLockMemory>(ids_size);
 
     offset = 0;
     for (auto i = 0; i < other.ids.size(); i++) {
         auto& list_ids = other.ids[i];
-        auto& list_codes = other.codes[i];
+        // auto& list_codes = other.codes[i];
 
         uint8_t* ids_ptr = (uint8_t*)(pin_readonly_ids->data) + offset * sizeof(idx_t);
         memcpy(ids_ptr, list_ids.data(), list_ids.size() * sizeof(idx_t));
 
-        uint8_t* codes_ptr = (uint8_t*)(pin_readonly_codes->data) + offset * (this->code_size) * sizeof(uint8_t);
-        memcpy(codes_ptr, list_codes.data(), list_codes.size() * sizeof(uint8_t));
+        // uint8_t* codes_ptr = (uint8_t*)(pin_readonly_codes->data) + offset * (this->code_size) * sizeof(uint8_t);
+        // memcpy(codes_ptr, list_codes.data(), list_codes.size() * sizeof(uint8_t));
 
         offset += list_ids.size();
     }
@@ -358,13 +362,13 @@ ReadOnlyArrayInvertedLists::is_valid() {
 
 size_t ReadOnlyArrayInvertedLists::add_entries (
         size_t , size_t ,
-        const idx_t* , const uint8_t *)
+        const idx_t*)
 {
     FAISS_THROW_MSG ("not implemented");
 }
 
 void ReadOnlyArrayInvertedLists::update_entries (size_t, size_t , size_t ,
-                                                 const idx_t *, const uint8_t *)
+                                                 const idx_t *)
 {
     FAISS_THROW_MSG ("not implemented");
 }
@@ -380,14 +384,24 @@ size_t ReadOnlyArrayInvertedLists::list_size(size_t list_no) const
     return readonly_length[list_no];
 }
 
-const uint8_t * ReadOnlyArrayInvertedLists::get_codes (size_t list_no) const
+const uint8_t * ReadOnlyArrayInvertedLists::get_codes (size_t list_no, const uint8_t *original_codes) const
 {
     FAISS_ASSERT(list_no < nlist && valid);
 #ifdef USE_CPU
-    return readonly_codes.data() + readonly_offset[list_no] * code_size;
+    std::vector<uint8_t> res;
+    for (size_t i = 0; i < list_size(list_no); i++) {
+        res.push_back(original_codes[get_single_id(list_no, i)]);
+    }
+    return res.data();
+    // return readonly_codes.data() + readonly_offset[list_no] * code_size;
 #else
-    uint8_t *pcodes = (uint8_t *)(pin_readonly_codes->data);
-    return pcodes + readonly_offset[list_no] * code_size;
+    std::vector<uint8_t> res;
+    for (size_t i = 0; i < list_size(list_no); i++) {
+        res.push_back(original_codes[get_single_id(list_no, i)]);
+    }
+    return res.data();
+    // uint8_t *pcodes = (uint8_t *)(pin_readonly_codes->data);
+    // return pcodes + readonly_offset[list_no] * code_size;
 #endif
 }
 
@@ -411,13 +425,21 @@ const InvertedLists::idx_t* ReadOnlyArrayInvertedLists::get_all_ids() const {
 #endif
 }
 
-const uint8_t* ReadOnlyArrayInvertedLists::get_all_codes() const {
+const uint8_t* ReadOnlyArrayInvertedLists::get_all_codes(const uint8_t *original_codes) const {
     FAISS_ASSERT(valid);
+/*
 #ifdef USE_CPU
     return readonly_codes.data();
 #else
     return (uint8_t *)(pin_readonly_codes->data);
 #endif
+*/
+    std::vector<uint8_t> res;
+    for (size_t i = 0; i < nlist; i++) {
+        for (size_t j = 0; j < list_size(i); j++)
+            res.push_back(original_codes[get_single_id(i, j)]);
+    }
+    return res.data();
 }
 
 const std::vector<size_t>& ReadOnlyArrayInvertedLists::get_list_length() const {
@@ -437,13 +459,13 @@ bool ReadOnlyArrayInvertedLists::is_readonly() const {
 
 size_t ReadOnlyInvertedLists::add_entries (
            size_t , size_t ,
-           const idx_t* , const uint8_t *)
+           const idx_t*)
 {
     FAISS_THROW_MSG ("not implemented");
 }
 
 void ReadOnlyInvertedLists::update_entries (size_t, size_t , size_t ,
-                         const idx_t *, const uint8_t *)
+                         const idx_t *)
 {
     FAISS_THROW_MSG ("not implemented");
 }
@@ -482,7 +504,7 @@ size_t HStackInvertedLists::list_size(size_t list_no) const
     return sz;
 }
 
-const uint8_t * HStackInvertedLists::get_codes (size_t list_no) const
+const uint8_t * HStackInvertedLists::get_codes (size_t list_no, const uint8_t *original_codes) const
 {
     uint8_t *codes = new uint8_t [code_size * list_size(list_no)], *c = codes;
 
@@ -490,7 +512,7 @@ const uint8_t * HStackInvertedLists::get_codes (size_t list_no) const
         const InvertedLists *il = ils[i];
         size_t sz = il->list_size(list_no) * code_size;
         if (sz > 0) {
-            memcpy (c, ScopedCodes (il, list_no).get(), sz);
+            memcpy (c, ScopedCodes (il, list_no, original_codes).get(), sz);
             c += sz;
         }
     }
@@ -498,7 +520,7 @@ const uint8_t * HStackInvertedLists::get_codes (size_t list_no) const
 }
 
 const uint8_t * HStackInvertedLists::get_single_code (
-           size_t list_no, size_t offset) const
+           size_t list_no, size_t offset, const uint8_t *original_codes) const
 {
     for (int i = 0; i < ils.size(); i++) {
         const InvertedLists *il = ils[i];
@@ -506,7 +528,7 @@ const uint8_t * HStackInvertedLists::get_single_code (
         if (offset < sz) {
             // here we have to copy the code, otherwise it will crash at dealloc
             uint8_t * code = new uint8_t [code_size];
-            memcpy (code, ScopedCodes (il, list_no, offset).get(), code_size);
+            memcpy (code, ScopedCodes (il, list_no, offset, original_codes).get(), code_size);
             return code;
         }
         offset -= sz;
@@ -554,11 +576,11 @@ void HStackInvertedLists::release_ids (size_t, const idx_t *ids) const {
     delete [] ids;
 }
 
-void HStackInvertedLists::prefetch_lists (const idx_t *list_nos, int nlist) const
+void HStackInvertedLists::prefetch_lists (const idx_t *list_nos, int nlist, const uint8_t *original_codes) const
 {
     for (int i = 0; i < ils.size(); i++) {
         const InvertedLists *il = ils[i];
-        il->prefetch_lists (list_nos, nlist);
+        il->prefetch_lists (list_nos, nlist, original_codes);
     }
 }
 
@@ -594,15 +616,15 @@ size_t SliceInvertedLists::list_size(size_t list_no) const
     return il->list_size (translate_list_no (this, list_no));
 }
 
-const uint8_t * SliceInvertedLists::get_codes (size_t list_no) const
+const uint8_t * SliceInvertedLists::get_codes (size_t list_no, const uint8_t *original_codes) const
 {
-    return il->get_codes (translate_list_no (this, list_no));
+    return il->get_codes (translate_list_no (this, list_no), original_codes);
 }
 
 const uint8_t * SliceInvertedLists::get_single_code (
-           size_t list_no, size_t offset) const
+           size_t list_no, size_t offset, const uint8_t *original_codes) const
 {
-    return il->get_single_code (translate_list_no (this, list_no), offset);
+    return il->get_single_code (translate_list_no (this, list_no), offset, original_codes);
 }
 
 
@@ -627,7 +649,7 @@ void SliceInvertedLists::release_ids (size_t list_no, const idx_t *ids) const {
     return il->release_ids (translate_list_no (this, list_no), ids);
 }
 
-void SliceInvertedLists::prefetch_lists (const idx_t *list_nos, int nlist) const
+void SliceInvertedLists::prefetch_lists (const idx_t *list_nos, int nlist, const uint8_t *original_codes) const
 {
     std::vector<idx_t> translated_list_nos;
     for (int j = 0; j < nlist; j++) {
@@ -636,7 +658,7 @@ void SliceInvertedLists::prefetch_lists (const idx_t *list_nos, int nlist) const
         translated_list_nos.push_back (translate_list_no (this, list_no));
     }
     il->prefetch_lists (translated_list_nos.data(),
-                        translated_list_nos.size());
+                        translated_list_nos.size(), original_codes);
 }
 
 
@@ -699,19 +721,19 @@ size_t VStackInvertedLists::list_size(size_t list_no) const
     return ils[i]->list_size (list_no);
 }
 
-const uint8_t * VStackInvertedLists::get_codes (size_t list_no) const
+const uint8_t * VStackInvertedLists::get_codes (size_t list_no, const uint8_t *original_codes) const
 {
     int i = translate_list_no (this, list_no);
     list_no -= cumsz[i];
-    return ils[i]->get_codes (list_no);
+    return ils[i]->get_codes (list_no, original_codes);
 }
 
 const uint8_t * VStackInvertedLists::get_single_code (
-           size_t list_no, size_t offset) const
+           size_t list_no, size_t offset, const uint8_t *original_codes) const
 {
     int i = translate_list_no (this, list_no);
     list_no -= cumsz[i];
-    return ils[i]->get_single_code (list_no, offset);
+    return ils[i]->get_single_code (list_no, offset, original_codes);
 }
 
 
@@ -745,7 +767,7 @@ void VStackInvertedLists::release_ids (size_t list_no, const idx_t *ids) const {
 }
 
 void VStackInvertedLists::prefetch_lists (
-           const idx_t *list_nos, int nlist) const
+           const idx_t *list_nos, int nlist, const uint8_t *original_codes) const
 {
     std::vector<int> ilno (nlist, -1);
     std::vector<int> n_per_il (ils.size(), 0);
@@ -773,7 +795,7 @@ void VStackInvertedLists::prefetch_lists (
         int i1 = i0 + n_per_il[j];
         if (i1 > i0) {
             ils[j]->prefetch_lists (sorted_list_nos.data() + i0,
-                                    i1 - i0);
+                                    i1 - i0, original_codes);
         }
         i0 = i1;
     }
@@ -801,10 +823,10 @@ size_t MaskedInvertedLists::list_size(size_t list_no) const
     return sz ? sz : il1->list_size(list_no);
 }
 
-const uint8_t * MaskedInvertedLists::get_codes (size_t list_no) const
+const uint8_t * MaskedInvertedLists::get_codes (size_t list_no, const uint8_t *original_codes) const
 {
     size_t sz = il0->list_size(list_no);
-    return (sz ? il0 : il1)->get_codes(list_no);
+    return (sz ? il0 : il1)->get_codes(list_no, original_codes);
 }
 
 const idx_t * MaskedInvertedLists::get_ids (size_t list_no) const
@@ -833,14 +855,14 @@ idx_t MaskedInvertedLists::get_single_id (size_t list_no, size_t offset) const
 }
 
 const uint8_t * MaskedInvertedLists::get_single_code (
-           size_t list_no, size_t offset) const
+           size_t list_no, size_t offset, const uint8_t *original_codes) const
 {
     size_t sz = il0->list_size (list_no);
-    return (sz ? il0 : il1)->get_single_code (list_no, offset);
+    return (sz ? il0 : il1)->get_single_code (list_no, offset, original_codes);
 }
 
 void MaskedInvertedLists::prefetch_lists (
-       const idx_t *list_nos, int nlist) const
+       const idx_t *list_nos, int nlist, const uint8_t *original_codes) const
 {
     std::vector<idx_t> list0, list1;
     for (int i = 0; i < nlist; i++) {
@@ -849,8 +871,8 @@ void MaskedInvertedLists::prefetch_lists (
         size_t sz = il0->list_size(list_no);
         (sz ? list0 : list1).push_back (list_no);
     }
-    il0->prefetch_lists (list0.data(), list0.size());
-    il1->prefetch_lists (list1.data(), list1.size());
+    il0->prefetch_lists (list0.data(), list0.size(), original_codes);
+    il1->prefetch_lists (list1.data(), list1.size(), original_codes);
 }
 
 

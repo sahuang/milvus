@@ -86,7 +86,7 @@ struct IndexIVFPQ: IndexIVF {
     void train_residual_o (idx_t n, const float *x, float *residuals_2);
 
     void reconstruct_from_offset (int64_t list_no, int64_t offset,
-                                  float* recons) const override;
+                                  float* recons, const float *original_data = nullptr) const override;
 
     /** Find exact duplicates in the dataset.
      *

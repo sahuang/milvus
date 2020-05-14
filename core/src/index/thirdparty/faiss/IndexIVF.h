@@ -183,9 +183,22 @@ struct IndexIVF: Index, Level1Quantizer {
                                      ConcurrentBitsetPtr bitset = nullptr
                                      ) const;
 
+    void search_preassigned_test (idx_t n, const float *x, const float *original_data,
+                                    idx_t k,
+                                    const idx_t *assign,
+                                    const float *centroid_dis,
+                                    float *distances, idx_t *labels,
+                                    bool store_pairs,
+                                    const IVFSearchParameters *params = nullptr,
+                                    ConcurrentBitsetPtr bitset = nullptr
+    ) const;
+
     /** assign the vectors, then call search_preassign */
     void search (idx_t n, const float *x, idx_t k, float *distances, idx_t *labels,
                  ConcurrentBitsetPtr bitset = nullptr) const override;
+
+    void search_test (idx_t n, const float *x, const float *original_data, idx_t k, float *distances, idx_t *labels,
+                 ConcurrentBitsetPtr bitset = nullptr);
 
     /** get raw vectors by ids */
     void get_vector_by_id (idx_t n, const idx_t *xid, float *x, ConcurrentBitsetPtr bitset = nullptr) override;
@@ -240,7 +253,7 @@ struct IndexIVF: Index, Level1Quantizer {
      * `store_pairs` set.
      */
     virtual void reconstruct_from_offset (int64_t list_no, int64_t offset,
-                                          float* recons) const;
+                                          float* recons, const float *original_data = nullptr) const;
 
 
     /// Dataset manipulation functions

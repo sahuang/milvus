@@ -322,7 +322,7 @@ void IndexIVFPQ::add_core_o (idx_t n, const float * x, const idx_t *xids,
         idx_t id = xids ? xids[i] : ntotal + i;
 
         uint8_t *code = xcodes + i * code_size;
-        size_t offset = invlists->add_entry (key, id, code);
+        size_t offset = invlists->add_entry (key, id);
 
         if (residuals_2) {
             float *res2 = residuals_2 + i * d;
@@ -350,9 +350,9 @@ void IndexIVFPQ::add_core_o (idx_t n, const float * x, const idx_t *xids,
 
 
 void IndexIVFPQ::reconstruct_from_offset (int64_t list_no, int64_t offset,
-                                          float* recons) const
+                                          float* recons, const float *original_data) const
 {
-    const uint8_t* code = invlists->get_single_code (list_no, offset);
+    const uint8_t* code = invlists->get_single_code (list_no, offset, nullptr);
 
     if (by_residual) {
         std::vector<float> centroid(d);
@@ -1185,7 +1185,7 @@ size_t IndexIVFPQ::find_duplicates (idx_t *dup_ids, size_t *lims) const
         size_t n = invlists->list_size (list_no);
         std::vector<int> ord (n);
         for (int i = 0; i < n; i++) ord[i] = i;
-        InvertedLists::ScopedCodes codes (invlists, list_no);
+        InvertedLists::ScopedCodes codes (invlists, list_no, nullptr);
         CodeCmp cs = { codes.get(), code_size };
         std::sort (ord.begin(), ord.end(), cs);
 

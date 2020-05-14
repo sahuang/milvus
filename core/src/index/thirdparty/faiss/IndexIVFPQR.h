@@ -45,7 +45,7 @@ struct IndexIVFPQR: IndexIVFPQ {
                      const idx_t *precomputed_idx = nullptr);
 
     void reconstruct_from_offset (int64_t list_no, int64_t offset,
-                                  float* recons) const override;
+                                  float* recons, const float *original_data = nullptr) const override;
 
     void merge_from (IndexIVF &other, idx_t add_id) override;
 

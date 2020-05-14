@@ -114,7 +114,7 @@ struct IndexIVFScalarQuantizer: IndexIVF {
 
 
     void reconstruct_from_offset (int64_t list_no, int64_t offset,
-                                  float* recons) const override;
+                                  float* recons, const float *original_data = nullptr) const override;
 
     /* standalone codec interface */
     void sa_decode (idx_t n, const uint8_t *bytes,

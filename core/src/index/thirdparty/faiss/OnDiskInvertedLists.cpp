@@ -145,6 +145,7 @@ struct OnDiskInvertedLists::OngoingPrefetch {
     struct Thread {
         pthread_t pth;
         OngoingPrefetch *pf;
+        const uint8_t *original_codes;
 
         bool one_list () {
             idx_t list_no = pf->get_next_list();
@@ -153,7 +154,7 @@ struct OnDiskInvertedLists::OngoingPrefetch {
             od->locks->lock_1 (list_no);
             size_t n = od->list_size (list_no);
             const Index::idx_t *idx = od->get_ids (list_no);
-            const uint8_t *codes = od->get_codes (list_no);
+            const uint8_t *codes = od->get_codes (list_no, original_codes);
             int cs = 0;
             for (size_t i = 0; i < n;i++) {
                 cs += idx[i];
@@ -211,7 +212,7 @@ struct OnDiskInvertedLists::OngoingPrefetch {
         return list_no;
     }
 
-    void prefetch_lists (const idx_t *list_nos, int n) {
+    void prefetch_lists (const idx_t *list_nos, int n, const uint8_t *original_codes) {
         pthread_mutex_lock (&mutex);
         pthread_mutex_lock (&list_ids_mutex);
         list_ids.clear ();
@@ -236,6 +237,7 @@ struct OnDiskInvertedLists::OngoingPrefetch {
             threads.resize (nt);
             for (Thread &th: threads) {
                 th.pf = this;
+                th.original_codes = original_codes;
                 pthread_create (&th.pth, nullptr, prefetch_list, &th);
             }
         }
@@ -257,9 +259,9 @@ struct OnDiskInvertedLists::OngoingPrefetch {
 int OnDiskInvertedLists::OngoingPrefetch::global_cs = 0;
 
 
-void OnDiskInvertedLists::prefetch_lists (const idx_t *list_nos, int n) const
+void OnDiskInvertedLists::prefetch_lists (const idx_t *list_nos, int n, const uint8_t *original_codes) const
 {
-    pf->prefetch_lists (list_nos, n);
+    pf->prefetch_lists (list_nos, n, original_codes);
 }
 
 
@@ -401,12 +403,16 @@ size_t OnDiskInvertedLists::list_size(size_t list_no) const
 }
 
 
-const uint8_t * OnDiskInvertedLists::get_codes (size_t list_no) const
+const uint8_t * OnDiskInvertedLists::get_codes (size_t list_no, const uint8_t *original_codes) const
 {
     if (lists[list_no].offset == INVALID_OFFSET) {
         return nullptr;
     }
-
+/*
+    std::vector<uint8_t> res;
+    for (size_t i = 0; i < lists[list_no].capacity; i++) {
+        res.push_back(original_codes[lists[list_no][i]]);
+    }*/
     return ptr + lists[list_no].offset;
 }
 
@@ -423,7 +429,7 @@ const Index::idx_t * OnDiskInvertedLists::get_ids (size_t list_no) const
 
 void OnDiskInvertedLists::update_entries (
       size_t list_no, size_t offset, size_t n_entry,
-      const idx_t *ids_in, const uint8_t *codes_in)
+      const idx_t *ids_in)
 {
     FAISS_THROW_IF_NOT (!read_only);
     if (n_entry == 0) return;
@@ -431,19 +437,19 @@ void OnDiskInvertedLists::update_entries (
     assert (n_entry + offset <= l.size);
     idx_t *ids = const_cast<idx_t*>(get_ids (list_no));
     memcpy (ids + offset, ids_in, sizeof(ids_in[0]) * n_entry);
-    uint8_t *codes = const_cast<uint8_t*>(get_codes (list_no));
-    memcpy (codes + offset * code_size, codes_in, code_size * n_entry);
+    // uint8_t *codes = const_cast<uint8_t*>(get_codes (list_no));
+    // memcpy (codes + offset * code_size, codes_in, code_size * n_entry);
 }
 
 size_t OnDiskInvertedLists::add_entries (
            size_t list_no, size_t n_entry,
-           const idx_t* ids, const uint8_t *code)
+           const idx_t* ids)
 {
     FAISS_THROW_IF_NOT (!read_only);
     locks->lock_1 (list_no);
     size_t o = list_size (list_no);
     resize_locked (list_no, n_entry + o);
-    update_entries (list_no, o, n_entry, ids, code);
+    update_entries (list_no, o, n_entry, ids);
     locks->unlock_1 (list_no);
     return o;
 }
@@ -491,7 +497,7 @@ void OnDiskInvertedLists::resize_locked (size_t list_no, size_t new_size)
     if (l.offset != new_l.offset) {
         size_t n = std::min (new_size, l.size);
         if (n > 0) {
-            memcpy (ptr + new_l.offset, get_codes(list_no), n * code_size);
+            // memcpy (ptr + new_l.offset, get_codes(list_no, ), n * code_size);
             memcpy (ptr + new_l.offset + new_l.capacity * code_size,
                     get_ids (list_no), n * sizeof(idx_t));
         }
@@ -630,8 +636,7 @@ size_t OnDiskInvertedLists::merge_from (const InvertedLists **ils, int n_il,
             size_t n_entry = il->list_size(j);
             l.size += n_entry;
             update_entries (j, l.size - n_entry, n_entry,
-                            ScopedIds(il, j).get(),
-                            ScopedCodes(il, j).get());
+                            ScopedIds(il, j).get());
         }
         assert (l.size == l.capacity);
         if (verbose) {

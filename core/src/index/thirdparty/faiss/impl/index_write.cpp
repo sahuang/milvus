@@ -234,7 +234,7 @@ void write_InvertedLists (const InvertedLists *ils, IOWriter *f) {
         for (size_t i = 0; i < ails->nlist; i++) {
             size_t n = ails->ids[i].size();
             if (n > 0) {
-                WRITEANDCHECK (ails->codes[i].data(), n * ails->code_size);
+                //WRITEANDCHECK (ails->codes[i].data(), n * ails->code_size);
                 WRITEANDCHECK (ails->ids[i].data(), n);
             }
         }
@@ -249,12 +249,12 @@ void write_InvertedLists (const InvertedLists *ils, IOWriter *f) {
         size_t n = oa->readonly_ids.size();
         WRITE1(n);
         WRITEANDCHECK(oa->readonly_ids.data(), n);
-        WRITEANDCHECK(oa->readonly_codes.data(), n * oa->code_size);
+        // WRITEANDCHECK(oa->readonly_codes.data(), n * oa->code_size);
 #else
         size_t n = oa->pin_readonly_ids->size() / sizeof(InvertedLists::idx_t);
         WRITE1(n);
         WRITEANDCHECK((InvertedLists::idx_t *) oa->pin_readonly_ids->data, n);
-        WRITEANDCHECK((uint8_t *) oa->pin_readonly_codes->data, n * oa->code_size);
+        //WRITEANDCHECK((uint8_t *) oa->pin_readonly_codes->data, n * oa->code_size);
 #endif
     } else if (const auto & od =
                dynamic_cast<const OnDiskInvertedLists *>(ils)) {

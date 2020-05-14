@@ -55,7 +55,7 @@ struct IndexIVFFlat: IndexIVF {
     virtual void update_vectors (int nv, idx_t *idx, const float *v);
 
     void reconstruct_from_offset (int64_t list_no, int64_t offset,
-                                  float* recons) const override;
+                                  float* recons, const float *original_data = nullptr) const override;
 
     void sa_decode (idx_t n, const uint8_t *bytes,
                             float *x) const override;
@@ -106,7 +106,7 @@ struct IndexIVFFlatDedup: IndexIVFFlat {
 
     /// not implemented
     void reconstruct_from_offset (int64_t list_no, int64_t offset,
-                                  float* recons) const override;
+                                  float* recons, const float *original_data = nullptr) const override;
 
     IndexIVFFlatDedup () {}
 

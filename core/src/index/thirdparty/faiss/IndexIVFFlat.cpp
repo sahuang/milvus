@@ -67,7 +67,7 @@ void IndexIVFFlat::add_core (idx_t n, const float * x, const int64_t *xids,
             continue;
         const float *xi = x + i * d;
         size_t offset = invlists->add_entry (
-              list_no, id, (const uint8_t*) xi);
+              list_no, id);
 
         if (maintain_direct_map)
             direct_map.push_back (list_no << 32 | offset);
@@ -232,8 +232,7 @@ void IndexIVFFlat::update_vectors (int n, idx_t *new_ids, const float *x)
             if (ofs != l - 1) { // move l - 1 to ofs
                 int64_t id2 = invlists->get_single_id (il, l - 1);
                 direct_map[id2] = (il << 32) | ofs;
-                invlists->update_entry (il, ofs, id2,
-                                        invlists->get_single_code (il, l - 1));
+                invlists->update_entry (il, ofs, id2);
             }
             invlists->resize (il, l - 1);
         }
@@ -242,16 +241,16 @@ void IndexIVFFlat::update_vectors (int n, idx_t *new_ids, const float *x)
             size_t l = invlists->list_size (il);
             int64_t dm = (il << 32) | l;
             direct_map[id] = dm;
-            invlists->add_entry (il, id, (const uint8_t*)(x + i * d));
+            invlists->add_entry (il, id);
         }
     }
 
 }
 
 void IndexIVFFlat::reconstruct_from_offset (int64_t list_no, int64_t offset,
-                                            float* recons) const
+                                            float* recons, const float *original_data) const
 {
-    memcpy (recons, invlists->get_single_code (list_no, offset), code_size);
+    memcpy (recons, invlists->get_single_code (list_no, offset, (const uint8_t *)original_data), code_size);
 }
 
 /*****************************************
@@ -317,7 +316,7 @@ void IndexIVFFlatDedup::add_with_ids(
         const float *xi = x + i * d;
 
         // search if there is already an entry with that id
-        InvertedLists::ScopedCodes codes (invlists, list_no);
+        InvertedLists::ScopedCodes codes (invlists, list_no, nullptr);
 
         int64_t n = invlists->list_size (list_no);
         int64_t offset = -1;
@@ -330,7 +329,7 @@ void IndexIVFFlatDedup::add_with_ids(
         }
 
         if (offset == -1) { // not found
-            invlists->add_entry (list_no, id, (const uint8_t*) xi);
+            invlists->add_entry (list_no, id);
         } else {
             // mark equivalence
             idx_t id2 = invlists->get_single_id (list_no, offset);
@@ -450,13 +449,11 @@ size_t IndexIVFFlatDedup::remove_ids(const IDSelector& sel)
                     l--;
                     invlists->update_entry (
                         i, j,
-                        invlists->get_single_id (i, l),
-                        InvertedLists::ScopedCodes (invlists, i, l).get());
+                        invlists->get_single_id (i, l));
                 } else {
                     invlists->update_entry (
                         i, j,
-                        replace[idsi[j]],
-                        InvertedLists::ScopedCodes (invlists, i, j).get());
+                        replace[idsi[j]]);
                     j++;
                 }
             } else {
@@ -496,7 +493,7 @@ void IndexIVFFlatDedup::update_vectors (int , idx_t *, const float *)
 
 
 void IndexIVFFlatDedup::reconstruct_from_offset (
-         int64_t , int64_t , float* ) const
+         int64_t , int64_t , float* , const float *original_data) const
 {
     FAISS_THROW_MSG ("not implemented");
 }

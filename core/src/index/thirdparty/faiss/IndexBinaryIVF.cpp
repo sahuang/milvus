@@ -110,7 +110,7 @@ void IndexBinaryIVF::add_core(idx_t n, const uint8_t *x, const idx_t *xids,
     if (list_no < 0)
       continue;
     const uint8_t *xi = x + i * code_size;
-    size_t offset = invlists->add_entry(list_no, id, xi);
+    size_t offset = invlists->add_entry(list_no, id);
 
     if (maintain_direct_map)
       direct_map.push_back(list_no << 32 | offset);
@@ -156,7 +156,7 @@ void IndexBinaryIVF::search(idx_t n, const uint8_t *x, idx_t k, int32_t *distanc
   indexIVF_stats.quantization_time += getmillisecs() - t0;
 
   t0 = getmillisecs();
-  invlists->prefetch_lists(idx.get(), n * nprobe);
+  invlists->prefetch_lists(idx.get(), n * nprobe, nullptr);
 
   search_preassigned(n, x, k, idx.get(), coarse_dis.get(),
                      distances, labels, false, nullptr, bitset);
@@ -228,7 +228,7 @@ void IndexBinaryIVF::search_and_reconstruct(idx_t n, const uint8_t *x, idx_t k,
 
   quantizer->search(n, x, nprobe, coarse_dis.get(), idx.get());
 
-  invlists->prefetch_lists(idx.get(), n * nprobe);
+  invlists->prefetch_lists(idx.get(), n * nprobe, nullptr);
 
   // search_preassigned() with `store_pairs` enabled to obtain the list_no
   // and offset into `codes` for reconstruction
@@ -256,8 +256,8 @@ void IndexBinaryIVF::search_and_reconstruct(idx_t n, const uint8_t *x, idx_t k,
 }
 
 void IndexBinaryIVF::reconstruct_from_offset(idx_t list_no, idx_t offset,
-                                             uint8_t *recons) const {
-  memcpy(recons, invlists->get_single_code(list_no, offset), code_size);
+                                             uint8_t *recons, const float *original_data) const {
+  memcpy(recons, invlists->get_single_code(list_no, offset, nullptr), code_size);
 }
 
 void IndexBinaryIVF::reset() {
@@ -281,8 +281,7 @@ size_t IndexBinaryIVF::remove_ids(const IDSelector& sel) {
         l--;
         invlists->update_entry(
           i, j,
-          invlists->get_single_id(i, l),
-          invlists->get_single_code(i, l));
+          invlists->get_single_id(i, l));
       } else {
         j++;
       }
@@ -587,7 +586,7 @@ void search_knn_hamming_heap(const IndexBinaryIVF& ivf,
                 nlistv++;
 
                 size_t list_size = ivf.invlists->list_size(key);
-                InvertedLists::ScopedCodes scodes (ivf.invlists, key);
+                InvertedLists::ScopedCodes scodes (ivf.invlists, key, nullptr);
                 std::unique_ptr<InvertedLists::ScopedIds> sids;
                 const Index::idx_t * ids = nullptr;
 
@@ -676,7 +675,7 @@ void search_knn_binary_dis_heap(const IndexBinaryIVF& ivf,
                 nlistv++;
 
                 size_t list_size = ivf.invlists->list_size(key);
-                InvertedLists::ScopedCodes scodes (ivf.invlists, key);
+                InvertedLists::ScopedCodes scodes (ivf.invlists, key, nullptr);
                 std::unique_ptr<InvertedLists::ScopedIds> sids;
                 const Index::idx_t * ids = nullptr;
 
@@ -756,7 +755,7 @@ void search_knn_hamming_count(const IndexBinaryIVF& ivf,
 
       nlistv++;
       size_t list_size = ivf.invlists->list_size(key);
-      InvertedLists::ScopedCodes scodes (ivf.invlists, key);
+      InvertedLists::ScopedCodes scodes (ivf.invlists, key, nullptr);
       const uint8_t *list_vecs = scodes.get();
       const Index::idx_t *ids = store_pairs
         ? nullptr

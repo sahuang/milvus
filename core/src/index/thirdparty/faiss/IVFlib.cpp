@@ -208,8 +208,8 @@ void SlidingIndexWindow::step(const Index *sub_index, bool remove_oldest) {
             index_ivf->ntotal += ils2->ids[i].size() - amount_to_remove;
 
             shift_and_add (ils->ids[i], amount_to_remove, ils2->ids[i]);
-            shift_and_add (ils->codes[i], amount_to_remove * ils->code_size,
-                           ils2->codes[i]);
+            //shift_and_add (ils->codes[i], amount_to_remove * ils->code_size,
+             //              ils2->codes[i]);
             for (int j = 0; j + 1 < n_slice; j++) {
                 sizesi[j] = sizesi[j + 1] - amount_to_remove;
             }
@@ -219,7 +219,7 @@ void SlidingIndexWindow::step(const Index *sub_index, bool remove_oldest) {
         for (int i = 0; i < nlist; i++) {
             index_ivf->ntotal += ils2->ids[i].size();
             shift_and_add (ils->ids[i], 0, ils2->ids[i]);
-            shift_and_add (ils->codes[i], 0, ils2->codes[i]);
+            //shift_and_add (ils->codes[i], 0, ils2->codes[i]);
             sizes[i].push_back(ils->ids[i].size());
         }
         n_slice++;
@@ -228,8 +228,8 @@ void SlidingIndexWindow::step(const Index *sub_index, bool remove_oldest) {
             size_t amount_to_remove = sizes[i][0];
             index_ivf->ntotal -= amount_to_remove;
             remove_from_begin (ils->ids[i], amount_to_remove);
-            remove_from_begin (ils->codes[i],
-                               amount_to_remove * ils->code_size);
+            //remove_from_begin (ils->codes[i],
+             //                  amount_to_remove * ils->code_size);
             for (int j = 0; j + 1 < n_slice; j++) {
                 sizes[i][j] = sizes[i][j + 1] - amount_to_remove;
             }
@@ -260,8 +260,7 @@ get_invlist_range (const Index *index, long i0, long i1)
 
     for (long i = i0; i < i1; i++) {
         il->add_entries(i - i0, src->list_size(i),
-                        InvertedLists::ScopedIds (src, i).get(),
-                        InvertedLists::ScopedCodes (src, i).get());
+                        InvertedLists::ScopedIds (src, i).get());
     }
     return il;
 }
@@ -284,7 +283,7 @@ void set_invlist_range (Index *index, long i0, long i1,
     for (long i = i0 ; i < i1; i++) {
         ntotal -= dst->list_size (i);
         ntotal += src->list_size (i - i0);
-        std::swap (src->codes[i - i0], dst->codes[i]);
+        //std::swap (src->codes[i - i0], dst->codes[i]);
         std::swap (src->ids[i - i0], dst->ids[i]);
     }
     ivf->ntotal = index->ntotal = ntotal;

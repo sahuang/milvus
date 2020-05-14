@@ -213,14 +213,14 @@ InvertedLists *read_InvertedLists (IOReader *f, int io_flags) {
         READ1(n);
 #ifdef USE_CPU
         ails->readonly_ids.resize(n);
-        ails->readonly_codes.resize(n*code_size);
+        //ails->readonly_codes.resize(n*code_size);
         READANDCHECK(ails->readonly_ids.data(), n);
-        READANDCHECK(ails->readonly_codes.data(), n * code_size);
+        //READANDCHECK(ails->readonly_codes.data(), n * code_size);
 #else
         ails->pin_readonly_ids = std::make_shared<PageLockMemory>(n * sizeof(InvertedLists::idx_t));
-        ails->pin_readonly_codes = std::make_shared<PageLockMemory>(n * code_size * sizeof(uint8_t));
+        //ails->pin_readonly_codes = std::make_shared<PageLockMemory>(n * code_size * sizeof(uint8_t));
         READANDCHECK((InvertedLists::idx_t *) ails->pin_readonly_ids->data, n);
-        READANDCHECK((uint8_t *) ails->pin_readonly_codes->data, n * code_size);
+        //READANDCHECK((uint8_t *) ails->pin_readonly_codes->data, n * code_size);
 #endif
         return ails;
     } else if (h == fourcc ("ilar") && !(io_flags & IO_FLAG_MMAP)) {
@@ -228,17 +228,17 @@ InvertedLists *read_InvertedLists (IOReader *f, int io_flags) {
         READ1 (ails->nlist);
         READ1 (ails->code_size);
         ails->ids.resize (ails->nlist);
-        ails->codes.resize (ails->nlist);
+        //ails->codes.resize (ails->nlist);
         std::vector<size_t> sizes (ails->nlist);
         read_ArrayInvertedLists_sizes (f, sizes);
         for (size_t i = 0; i < ails->nlist; i++) {
             ails->ids[i].resize (sizes[i]);
-            ails->codes[i].resize (sizes[i] * ails->code_size);
+            //ails->codes[i].resize (sizes[i] * ails->code_size);
         }
         for (size_t i = 0; i < ails->nlist; i++) {
             size_t n = ails->ids[i].size();
             if (n > 0) {
-                READANDCHECK (ails->codes[i].data(), n * ails->code_size);
+                //READANDCHECK (ails->codes[i].data(), n * ails->code_size);
                 READANDCHECK (ails->ids[i].data(), n);
             }
         }
@@ -434,8 +434,6 @@ static IndexIVFPQ *read_ivfpq (IOReader *f, uint32_t h, int io_flags)
 
     if (legacy) {
         ArrayInvertedLists *ail = set_array_invlist (ivpq, ids);
-        for (size_t i = 0; i < ail->nlist; i++)
-            READVECTOR (ail->codes[i]);
     } else {
         read_InvertedLists (ivpq, f, io_flags);
     }
@@ -526,15 +524,15 @@ Index *read_index (IOReader *f, int io_flags) {
 
         if (h == fourcc ("IvFL")) {
             for (size_t i = 0; i < ivfl->nlist; i++) {
-                READVECTOR (ail->codes[i]);
+                //READVECTOR (ail->codes[i]);
             }
         } else { // old format
             for (size_t i = 0; i < ivfl->nlist; i++) {
                 std::vector<float> vec;
                 READVECTOR (vec);
-                ail->codes[i].resize(vec.size() * sizeof(float));
-                memcpy(ail->codes[i].data(), vec.data(),
-                       ail->codes[i].size());
+                //ail->codes[i].resize(vec.size() * sizeof(float));
+                //memcpy(ail->codes[i].data(), vec.data(),
+                //       ail->codes[i].size());
             }
         }
         idx = ivfl;
@@ -584,7 +582,7 @@ Index *read_index (IOReader *f, int io_flags) {
         READ1 (ivsc->code_size);
         ArrayInvertedLists *ail = set_array_invlist (ivsc, ids);
         for(int i = 0; i < ivsc->nlist; i++)
-            READVECTOR (ail->codes[i]);
+            //READVECTOR (ail->codes[i]);
         idx = ivsc;
     } else if(h == fourcc ("IwSQ") || h == fourcc ("IwSq")) {
         IndexIVFScalarQuantizer * ivsc = new IndexIVFScalarQuantizer();

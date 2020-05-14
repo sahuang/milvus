@@ -12,11 +12,13 @@
 #include <faiss/IndexFlat.h>
 #include <faiss/IndexIVFFlat.h>
 
+#include <faiss/utils/utils.h>
+
 
 int main() {
-    int d = 64;                            // dimension
-    int nb = 100000;                       // database size
-    int nq = 10000;                        // nb of queries
+    int d = 256;                            // dimension
+    int nb = 2000000;                       // database size
+    int nq = 1;                        // nb of queries
 
     float *xb = new float[d * nb];
     float *xq = new float[d * nq];
@@ -34,7 +36,7 @@ int main() {
     }
 
 
-    int nlist = 100;
+    int nlist = 2048;
     int k = 4;
 
     faiss::IndexFlatL2 quantizer(d);       // the other index
@@ -43,23 +45,20 @@ int main() {
     assert(!index.is_trained);
     index.train(nb, xb);
     assert(index.is_trained);
+    double t0 = faiss::getmillisecs();
     index.add(nb, xb);
+    printf("Add time: %.2f\n", faiss::getmillisecs() - t0);
+    t0 = faiss::getmillisecs();
 
     {       // search xq
         long *I = new long[k * nq];
         float *D = new float[k * nq];
 
-        index.search(nq, xq, k, D, I);
-
-        printf("I=\n");
-        for(int i = nq - 5; i < nq; i++) {
-            for(int j = 0; j < k; j++)
-                printf("%5ld ", I[i * k + j]);
-            printf("\n");
-        }
-
-        index.nprobe = 10;
-        index.search(nq, xq, k, D, I);
+        index.nprobe = 20;
+        t0 = faiss::getmillisecs();
+        index.search_test(nq, xq, xb, k, D, I);
+        printf("Search time: %.2f\n", faiss::getmillisecs() - t0);
+        t0 = faiss::getmillisecs();
 
         printf("I=\n");
         for(int i = nq - 5; i < nq; i++) {

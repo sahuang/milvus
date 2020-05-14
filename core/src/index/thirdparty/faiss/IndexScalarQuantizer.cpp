@@ -276,7 +276,7 @@ void IndexIVFScalarQuantizer::add_with_ids
                 memset (one_code.data(), 0, code_size);
                 squant->encode_vector (xi, one_code.data());
 
-                invlists->add_entry (list_no, id, one_code.data());
+                invlists->add_entry (list_no, id);
 
                 nadd++;
 
@@ -300,12 +300,12 @@ InvertedListScanner* IndexIVFScalarQuantizer::get_InvertedListScanner
 
 void IndexIVFScalarQuantizer::reconstruct_from_offset (int64_t list_no,
                                                        int64_t offset,
-                                                       float* recons) const
+                                                       float* recons, const float *original_data) const
 {
     std::vector<float> centroid(d);
     quantizer->reconstruct (list_no, centroid.data());
 
-    const uint8_t* code = invlists->get_single_code (list_no, offset);
+    const uint8_t* code = invlists->get_single_code (list_no, offset, nullptr);
     sq.decode (code, recons, 1);
     for (int i = 0; i < d; ++i) {
         recons[i] += centroid[i];

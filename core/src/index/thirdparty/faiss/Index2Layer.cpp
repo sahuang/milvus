@@ -204,7 +204,7 @@ void Index2Layer::transfer_to_IVFPQ (IndexIVFPQ & other) const
         idx_t key = 0;
         memcpy (&key, rp, code_size_1);
         rp += code_size_1;
-        other.invlists->add_entry (key, i, rp);
+        other.invlists->add_entry (key, i);
         rp += code_size_2;
     }
 

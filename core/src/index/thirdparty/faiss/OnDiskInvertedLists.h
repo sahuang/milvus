@@ -79,15 +79,15 @@ struct OnDiskInvertedLists: InvertedLists {
                          const char *filename);
 
     size_t list_size(size_t list_no) const override;
-    const uint8_t * get_codes (size_t list_no) const override;
+    const uint8_t * get_codes (size_t list_no, const uint8_t *original_codes) const override;
     const idx_t * get_ids (size_t list_no) const override;
 
     size_t add_entries (
            size_t list_no, size_t n_entry,
-           const idx_t* ids, const uint8_t *code) override;
+           const idx_t* ids) override;
 
     void update_entries (size_t list_no, size_t offset, size_t n_entry,
-                         const idx_t *ids, const uint8_t *code) override;
+                         const idx_t *ids) override;
 
     void resize (size_t list_no, size_t new_size) override;
 
@@ -98,7 +98,7 @@ struct OnDiskInvertedLists: InvertedLists {
     /// restrict the inverted lists to l0:l1 without touching the mmapped region
     void crop_invlists(size_t l0, size_t l1);
 
-    void prefetch_lists (const idx_t *list_nos, int nlist) const override;
+    void prefetch_lists (const idx_t *list_nos, int nlist, const uint8_t *original_codes) const override;
 
     virtual ~OnDiskInvertedLists ();
 
