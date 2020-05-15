@@ -189,7 +189,7 @@ struct InvertedLists {
         size_t list_no;
 
         ScopedCodes (const InvertedLists *il, size_t list_no, const uint8_t *original_codes):
-            il (il), codes (il->get_codes (list_no, original_codes)), list_no (list_no)
+            il (il), codes (original_codes), list_no (list_no)
         {}
 
         ScopedCodes (const InvertedLists *il, size_t list_no, size_t offset, const uint8_t *original_codes):

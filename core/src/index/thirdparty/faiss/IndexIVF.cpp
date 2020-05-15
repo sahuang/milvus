@@ -437,6 +437,7 @@ void IndexIVF::search_preassigned_test (idx_t n, const float *x, const float *or
 
             InvertedLists::ScopedCodes scodes (invlists, key,  (const uint8_t *)original_data);
 
+
             std::unique_ptr<InvertedLists::ScopedIds> sids;
             const Index::idx_t * ids = nullptr;
 
@@ -456,7 +457,6 @@ void IndexIVF::search_preassigned_test (idx_t n, const float *x, const float *or
          ****************************************************/
 
         if (parallel_mode == 0) {
-            printf("Mode = 0\n");
 
 #pragma omp for
             for (size_t i = 0; i < n; i++) {
@@ -476,7 +476,6 @@ void IndexIVF::search_preassigned_test (idx_t n, const float *x, const float *or
 
                 // loop over probes
                 for (size_t ik = 0; ik < nprobe; ik++) {
-                    printf("i = %d, ik = %d\n", i, ik);
                     nscan += scan_one_list (
                          keys [i * nprobe + ik],
                          coarse_dis[i * nprobe + ik], original_data,
@@ -498,7 +497,6 @@ void IndexIVF::search_preassigned_test (idx_t n, const float *x, const float *or
             } // parallel for
         } else if (parallel_mode == 1) {
 
-            printf("Mode = 1\n");
             std::vector <idx_t> local_idx (k);
             std::vector <float> local_dis (k);
 
@@ -508,7 +506,6 @@ void IndexIVF::search_preassigned_test (idx_t n, const float *x, const float *or
 
 #pragma omp for schedule(dynamic)
                 for (size_t ik = 0; ik < nprobe; ik++) {
-                    printf("i = %d, ik = %d\n", i, ik);
                     ndis += scan_one_list
                         (keys [i * nprobe + ik],
                          coarse_dis[i * nprobe + ik], original_data, 

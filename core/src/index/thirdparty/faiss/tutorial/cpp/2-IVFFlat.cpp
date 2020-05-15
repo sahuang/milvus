@@ -16,12 +16,14 @@
 
 
 int main() {
-    int d = 256;                            // dimension
-    int nb = 2000000;                       // database size
-    int nq = 1;                        // nb of queries
+    int d = 128;                            // dimension
+    int nb = 5000000;                       // database size
+    int nq = 10000;                        // nb of queries
 
     float *xb = new float[d * nb];
     float *xq = new float[d * nq];
+
+    srand48(1234567);
 
     for(int i = 0; i < nb; i++) {
         for(int j = 0; j < d; j++)
@@ -36,7 +38,7 @@ int main() {
     }
 
 
-    int nlist = 2048;
+    int nlist = 4096;
     int k = 4;
 
     faiss::IndexFlatL2 quantizer(d);       // the other index
@@ -61,9 +63,16 @@ int main() {
         t0 = faiss::getmillisecs();
 
         printf("I=\n");
-        for(int i = nq - 5; i < nq; i++) {
+        for(int i = 0; i < 5; i++) {
             for(int j = 0; j < k; j++)
                 printf("%5ld ", I[i * k + j]);
+            printf("\n");
+        }
+
+        printf("D=\n");
+        for(int i = 0; i < 5; i++) {
+            for(int j = 0; j < k; j++)
+                printf("%.5f ", D[i * k + j]);
             printf("\n");
         }
 

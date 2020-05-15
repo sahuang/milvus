@@ -220,14 +220,25 @@ size_t ArrayInvertedLists::list_size(size_t list_no) const
 const uint8_t * ArrayInvertedLists::get_codes (size_t list_no, const uint8_t *original_codes) const
 {
     assert (list_no < nlist);
+/*
     printf("Get codes %ld with size %ld\n", list_no, ids[list_no].size());
     std::vector<uint8_t> res;
     for (size_t i = 0; i < ids[list_no].size(); i++) {
-        res.push_back(original_codes[ids[list_no][i]]);
+        printf("Number %ld\n", ids[list_no][i]);
+        res.push_back(original_codes[ids[list_no][i] * 64]);
     }
     return res.data();
+*/
+    printf("Will not get here\n");
+    const int D =64;
+    uint8_t *p = (uint8_t *)malloc(D * ids[list_no].size() * sizeof(float));
+    for (size_t i = 0; i < ids[list_no].size(); i++) {
+        auto id = ids[list_no][i];
+//        printf("%f %f %f %f\n", (float) original_codes[id * D], (float) original_codes[id * D + 1]);
+        memcpy(p + D * i * sizeof(float), original_codes + id * D * sizeof(float), D * sizeof(float));
+    }
+    return p;
 }
-
 
 const InvertedLists::idx_t * ArrayInvertedLists::get_ids (size_t list_no) const
 {
@@ -387,6 +398,7 @@ size_t ReadOnlyArrayInvertedLists::list_size(size_t list_no) const
 const uint8_t * ReadOnlyArrayInvertedLists::get_codes (size_t list_no, const uint8_t *original_codes) const
 {
     FAISS_ASSERT(list_no < nlist && valid);
+    printf("Not here\n");
 #ifdef USE_CPU
     std::vector<uint8_t> res;
     for (size_t i = 0; i < list_size(list_no); i++) {
@@ -434,6 +446,7 @@ const uint8_t* ReadOnlyArrayInvertedLists::get_all_codes(const uint8_t *original
     return (uint8_t *)(pin_readonly_codes->data);
 #endif
 */
+    printf("NORT here\n");
     std::vector<uint8_t> res;
     for (size_t i = 0; i < nlist; i++) {
         for (size_t j = 0; j < list_size(i); j++)

@@ -151,11 +151,11 @@ struct IVFFlatScanner: InvertedListScanner {
                        size_t k,
                        ConcurrentBitsetPtr bitset) const override
     {
-        const float *list_vecs = (const float*)codes;
+        const float *original_data = (const float*)codes;
         size_t nup = 0;
         for (size_t j = 0; j < list_size; j++) {
             if(!bitset || !bitset->test(ids[j])){
-                const float * yj = list_vecs + d * j;
+                const float * yj = original_data + d * ids[j];
                 float dis = metric == METRIC_INNER_PRODUCT ?
                             fvec_inner_product (xi, yj, d) : fvec_L2sqr (xi, yj, d);
                 if (C::cmp (simi[0], dis)) {
