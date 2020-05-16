@@ -128,6 +128,10 @@ struct Index {
      */
     virtual void add_with_ids (idx_t n, const float * x, const idx_t *xids);
 
+    virtual void add_without_codes(idx_t n, const float* x);
+
+    virtual void add_with_ids_without_codes(idx_t n, const float* x, const idx_t* xids);
+
     /** query n vectors of dimension d to the index.
      *
      * return at most k vectors. If there are not enough results for a

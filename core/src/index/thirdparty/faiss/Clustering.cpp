@@ -26,7 +26,7 @@ namespace faiss {
 ClusteringParameters::ClusteringParameters ():
     niter(25),
     nredo(1),
-    verbose(true),
+    verbose(false),
     spherical(false),
     int_centroids(false),
     update_index(false),
@@ -206,12 +206,12 @@ void Clustering::train (idx_t nx, const float *x_in, Index & index) {
 
             if (verbose) {
                 printf ("  Iteration %d (%.2f s, search %.2f s): "
-                        "objective=%g imbalance=%.3f nsplit=%d\n",
+                        "objective=%g imbalance=%.3f nsplit=%d       \r",
                         i, (getmillisecs() - t0) / 1000.0,
                         t_search_tot / 1000,
                         err, imbalance_factor (nx, k, assign),
                         nsplit);
-                // fflush (stdout);
+                fflush (stdout);
             }
 
             post_process_centroids ();

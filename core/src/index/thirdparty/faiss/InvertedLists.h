@@ -112,6 +112,12 @@ struct InvertedLists {
            size_t list_no, size_t n_entry,
            const idx_t* ids, const uint8_t *code) = 0;
 
+    /// add one entry to an inverted list without codes
+    virtual size_t add_entry_without_codes (size_t list_no, idx_t theid);
+
+    virtual size_t add_entries_without_codes ( size_t list_no, size_t n_entry,
+                                       const idx_t* ids);
+
     virtual void update_entry (size_t list_no, size_t offset,
                                idx_t id, const uint8_t *code);
 
@@ -193,6 +199,11 @@ struct InvertedLists {
             il (il), codes (il->get_codes (list_no)), list_no (list_no)
         {}
 
+        // For codes outside
+        ScopedCodes (const InvertedLists *il, size_t list_no, const uint8_t *original_codes):
+            il (il), codes (original_codes), list_no (list_no)
+        {}
+
         ScopedCodes (const InvertedLists *il, size_t list_no, size_t offset):
             il (il), codes (il->get_single_code (list_no, offset)),
             list_no (list_no)
@@ -223,6 +234,10 @@ struct ArrayInvertedLists: InvertedLists {
     size_t add_entries (
            size_t list_no, size_t n_entry,
            const idx_t* ids, const uint8_t *code) override;
+
+    size_t add_entries_without_codes ( 
+           size_t list_no, size_t n_entry,
+           const idx_t* ids) override;
 
     void update_entries (size_t list_no, size_t offset, size_t n_entry,
                          const idx_t *ids, const uint8_t *code) override;
@@ -266,6 +281,10 @@ struct ReadOnlyArrayInvertedLists: InvertedLists {
     size_t add_entries (
             size_t list_no, size_t n_entry,
             const idx_t* ids, const uint8_t *code) override;
+
+    size_t add_entries_without_codes ( 
+           size_t list_no, size_t n_entry,
+           const idx_t* ids) override;
 
     void update_entries (size_t list_no, size_t offset, size_t n_entry,
                          const idx_t *ids, const uint8_t *code) override;

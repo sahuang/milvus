@@ -110,6 +110,15 @@ size_t InvertedLists::add_entry (size_t list_no, idx_t theid,
     return add_entries (list_no, 1, &theid, code);
 }
 
+size_t InvertedLists::add_entry_without_codes (size_t list_no, idx_t theid) 
+{
+    return add_entries_without_codes (list_no, 1, &theid);
+}
+
+size_t InvertedLists::add_entries_without_codes (size_t list_no, size_t n_entry,
+                                                 const idx_t* ids) 
+{}
+
 void InvertedLists::update_entry (size_t list_no, size_t offset,
                                         idx_t id, const uint8_t *code)
 {
@@ -209,6 +218,18 @@ size_t ArrayInvertedLists::add_entries (
     memcpy (&ids[list_no][o], ids_in, sizeof (ids_in[0]) * n_entry);
     codes [list_no].resize ((o + n_entry) * code_size);
     memcpy (&codes[list_no][o * code_size], code, code_size * n_entry);
+    return o;
+}
+
+size_t ArrayInvertedLists::add_entries_without_codes (
+           size_t list_no, size_t n_entry,
+           const idx_t* ids_in)
+{
+    if (n_entry == 0) return 0;
+    assert (list_no < nlist);
+    size_t o = ids [list_no].size();
+    ids [list_no].resize (o + n_entry);
+    memcpy (&ids[list_no][o], ids_in, sizeof (ids_in[0]) * n_entry);
     return o;
 }
 
@@ -359,6 +380,13 @@ ReadOnlyArrayInvertedLists::is_valid() {
 size_t ReadOnlyArrayInvertedLists::add_entries (
         size_t , size_t ,
         const idx_t* , const uint8_t *)
+{
+    FAISS_THROW_MSG ("not implemented");
+}
+
+size_t ReadOnlyArrayInvertedLists::add_entries_without_codes (
+           size_t , size_t ,
+           const idx_t*)
 {
     FAISS_THROW_MSG ("not implemented");
 }

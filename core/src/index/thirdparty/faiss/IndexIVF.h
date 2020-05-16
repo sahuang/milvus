@@ -135,8 +135,14 @@ struct IndexIVF: Index, Level1Quantizer {
     /// Calls add_with_ids with NULL ids
     void add(idx_t n, const float* x) override;
 
+    /// Calls add_with_ids_without_codes
+    void add_without_codes(idx_t n, const float* x) override;
+
     /// default implementation that calls encode_vectors
     void add_with_ids(idx_t n, const float* x, const idx_t* xids) override;
+
+    /// Implementation for adding without original vector data
+    void add_with_ids_without_codes(idx_t n, const float* x, const idx_t* xids) override;
 
     /** Encodes a set of vectors as they would appear in the inverted lists
      *
@@ -183,9 +189,23 @@ struct IndexIVF: Index, Level1Quantizer {
                                      ConcurrentBitsetPtr bitset = nullptr
                                      ) const;
 
+    virtual void search_preassigned_without_codes (idx_t n, const float *x, 
+                                                    const float *original_codes, idx_t k,
+                                                    const idx_t *assign,
+                                                    const float *centroid_dis,
+                                                    float *distances, idx_t *labels,
+                                                    bool store_pairs,
+                                                    const IVFSearchParameters *params = nullptr,
+                                                    ConcurrentBitsetPtr bitset = nullptr
+                                                    );
+
     /** assign the vectors, then call search_preassign */
     void search (idx_t n, const float *x, idx_t k, float *distances, idx_t *labels,
                  ConcurrentBitsetPtr bitset = nullptr) const override;
+
+    void search_without_codes (idx_t n, const float *x, const float *original_codes, 
+                               idx_t k, float *distances, idx_t *labels,
+                               ConcurrentBitsetPtr bitset = nullptr);
 
     /** get raw vectors by ids */
     void get_vector_by_id (idx_t n, const idx_t *xid, float *x, ConcurrentBitsetPtr bitset = nullptr) override;
@@ -336,6 +356,13 @@ struct InvertedListScanner {
                                float *distances, idx_t *labels,
                                size_t k,
                                ConcurrentBitsetPtr bitset = nullptr) const = 0;
+
+    virtual size_t scan_codes_outside (size_t n,
+                                        const uint8_t *codes,
+                                        const idx_t *ids,
+                                        float *distances, idx_t *labels,
+                                        size_t k,
+                                        ConcurrentBitsetPtr bitset = nullptr);
 
     /** scan a set of codes, compute distances to current query and
      * update results if distances are below radius
