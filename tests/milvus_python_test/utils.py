@@ -591,7 +591,7 @@ def gen_simple_index():
         {"nlist": 1024},
         {"nlist": 1024},
         {"nlist": 1024, "m": 16},
-        {"M": 16, "efConstruction": 500},
+        {"M": 48, "efConstruction": 500},
         {"search_length": 50, "out_degree": 40, "candidate_pool_size": 100, "knng": 50},
         {"n_trees": 4}
     ]
@@ -607,7 +607,7 @@ def get_search_param(index_type):
     elif index_type == IndexType.HNSW:
         return {"ef": 64}
     elif index_type == IndexType.RNSG:
-        return {"search_length": 50}
+        return {"search_length": 100}
     elif index_type == IndexType.ANNOY:
         return {"search_k": 100}
 
