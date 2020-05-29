@@ -209,16 +209,21 @@ struct IndexIVF: Index, Level1Quantizer {
                  float *distances, idx_t *labels,
                  ConcurrentBitsetPtr bitset = nullptr) const override;
 
+<<<<<<< HEAD
     /** Similar to search, but does not store codes **/
     void search_without_codes (idx_t n, const float *x, const float *original_codes, 
                                idx_t k, float *distances, idx_t *labels,
                                ConcurrentBitsetPtr bitset = nullptr);
 
+=======
+#if 0
+>>>>>>> upstream/0.10.0
     /** get raw vectors by ids */
     void get_vector_by_id (idx_t n, const idx_t *xid, float *x, ConcurrentBitsetPtr bitset = nullptr) override;
 
     void search_by_id (idx_t n, const idx_t *xid, idx_t k, float *distances, idx_t *labels,
                        ConcurrentBitsetPtr bitset = nullptr) override;
+#endif
 
     void range_search (idx_t n, const float* x, float radius,
                        RangeSearchResult* result,
