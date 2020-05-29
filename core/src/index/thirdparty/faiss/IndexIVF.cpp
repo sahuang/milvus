@@ -326,7 +326,6 @@ void IndexIVF::search (idx_t n, const float *x, idx_t k,
     indexIVF_stats.search_time += getmillisecs() - t0;
 }
 
-<<<<<<< HEAD
 
 void IndexIVF::search_without_codes (idx_t n, const float *x, const float *original_codes, 
                                      idx_t k, float *distances, idx_t *labels,
@@ -348,9 +347,7 @@ void IndexIVF::search_without_codes (idx_t n, const float *x, const float *origi
 }
 
 
-=======
 #if 0
->>>>>>> upstream/0.10.0
 void IndexIVF::get_vector_by_id (idx_t n, const idx_t *xid, float *x, ConcurrentBitsetPtr bitset) {
     make_direct_map(true);
 
