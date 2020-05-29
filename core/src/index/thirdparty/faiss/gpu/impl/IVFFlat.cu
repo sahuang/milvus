@@ -311,6 +311,8 @@ IVFFlat::classifyAndAddVectors(Tensor<float, 2, true>& vecs,
   {
     DeviceTensor<int, 1, true> listOffset(mem, listOffsetHost, stream);
 
+    printf("runIVFFlatInvertedListAppend\n");
+
     // Now, for each list to which a vector is being assigned, write it
     runIVFFlatInvertedListAppend(listIds,
                                  listOffset,

@@ -39,6 +39,41 @@ void IndexIVFFlat::add_with_ids (idx_t n, const float * x, const idx_t *xids)
     add_core (n, x, xids, nullptr);
 }
 
+
+// Add ids only, vectors not added to Index.
+void IndexIVFFlat::add_with_ids_without_codes(idx_t n, const float* x, const idx_t* xids) 
+{
+    FAISS_THROW_IF_NOT (is_trained);
+    assert (invlists);
+    direct_map.check_can_add (xids);
+    const int64_t * idx;
+    ScopeDeleter<int64_t> del;
+
+    int64_t * idx0 = new int64_t [n];
+    del.set (idx0);
+    quantizer->assign (n, x, idx0);
+    idx = idx0;
+
+    int64_t n_add = 0;
+    for (size_t i = 0; i < n; i++) {
+        idx_t id = xids ? xids[i] : ntotal + i;
+        idx_t list_no = idx [i];
+        size_t offset;
+
+        if (list_no >= 0) {
+            const float *xi = x + i * d;
+            offset = invlists->add_entry_without_codes (
+                     list_no, id);
+            n_add++;
+        } else {
+            offset = 0;
+        }
+        direct_map.add_single_id (id, list_no, offset);
+    }
+
+    ntotal += n;
+}
+
 void IndexIVFFlat::add_core (idx_t n, const float * x, const int64_t *xids,
                              const int64_t *precomputed_idx)
 
@@ -168,6 +203,31 @@ struct IVFFlatScanner: InvertedListScanner {
         }
         return nup;
     }
+
+    size_t scan_codes_outside (size_t list_size,
+                               const uint8_t *codes,
+                               const idx_t *ids,
+                               float *simi, idx_t *idxi,
+                               size_t k,
+                               ConcurrentBitsetPtr bitset) const override
+    {
+        const float *original_data = (const float*)codes;
+        size_t nup = 0;
+        for (size_t j = 0; j < list_size; j++) {
+            if(!bitset || !bitset->test(ids[j])){
+                const float * yj = original_data + d * ids[j];
+                float dis = metric == METRIC_INNER_PRODUCT ?
+                            fvec_inner_product (xi, yj, d) : fvec_L2sqr (xi, yj, d);
+                if (C::cmp (simi[0], dis)) {
+                    int64_t id = store_pairs ? (list_no << 32 | j) : ids[j];
+                    heap_swap_top<C> (k, simi, idxi, dis, id);
+                    nup++;
+                }
+            }
+        }
+        return nup;
+    }
+
 
     void scan_codes_range (size_t list_size,
                            const uint8_t *codes,

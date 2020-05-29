@@ -17,6 +17,7 @@
 #include <faiss/gpu/utils/Float16.cuh>
 
 #include <limits>
+#include <vector>
 
 namespace faiss { namespace gpu {
 
@@ -32,8 +33,8 @@ GpuIndexIVFFlat::GpuIndexIVFFlat(GpuResources* resources,
     ivfFlatConfig_(config),
     reserveMemoryVecs_(0),
     index_(nullptr) {
-  copyFrom(index);
-}
+      copyFrom(index);
+    }
 
 GpuIndexIVFFlat::GpuIndexIVFFlat(GpuResources* resources,
                                  int dims,
@@ -121,6 +122,96 @@ GpuIndexIVFFlat::copyFrom(const faiss::IndexIVFFlat* index) {
 }
 
 void
+GpuIndexIVFFlat::copyFromWithoutCodes(const faiss::IndexIVFFlat* index, const float* original_data) {
+  DeviceScope scope(device_);
+
+  GpuIndexIVF::copyFrom(index);
+
+  // Clear out our old data
+  delete index_;
+  index_ = nullptr;
+
+  // The other index might not be trained
+  if (!index->is_trained) {
+    FAISS_ASSERT(!is_trained);
+    return;
+  }
+
+  // Otherwise, we can populate ourselves from the other index
+  FAISS_ASSERT(is_trained);
+
+  // Copy our lists as well
+  index_ = new IVFFlat(resources_,
+                       quantizer->getGpuData(),
+                       index->metric_type,
+                       index->metric_arg,
+                       false, // no residual
+                       nullptr, // no scalar quantizer
+                       ivfFlatConfig_.indicesOptions,
+                       memorySpace_);
+  InvertedLists *ivf = index->invlists;
+
+  printf("Copy from cpu index to gpu without codes here.\n");
+
+  auto totalVecs = 0;
+  for (size_t i = 0; i < ivf->nlist; ++i) {
+    totalVecs += ivf->list_size(i);
+  }
+
+  size_t d = index->d;
+  float *codes = new float[totalVecs * d];
+
+  double tot = 0;
+  size_t currIndex = 0;
+
+  if (ReadOnlyArrayInvertedLists* rol = dynamic_cast<ReadOnlyArrayInvertedLists*>(ivf)) {
+    for (size_t i = 0; i < ivf->nlist; ++i) {
+      auto numVecs = ivf->list_size(i);
+      double t00 = faiss::getmillisecs();
+      for (size_t j = 0; j < numVecs; j++) {
+        memcpy(codes + (currIndex + j) * d, original_data + d * ivf->get_ids(i)[j], d * sizeof(float));
+      }
+      // printf("Time at %d: %.2f\n", faiss::getmillisecs() - t00);
+      tot += faiss::getmillisecs() - t00;
+      currIndex += numVecs;
+    }
+
+    index_->copyCodeVectorsFromCpu((const float* )codes,
+                                   (const long *)(rol->pin_readonly_ids->data), rol->readonly_length);
+
+  }
+  /*
+  
+  else {
+
+    for (size_t i = 0; i < ivf->nlist; ++i) {
+      auto numVecs = ivf->list_size(i);
+
+      // GPU index can only support max int entries per list
+      FAISS_THROW_IF_NOT_FMT(numVecs <=
+                              (size_t) std::numeric_limits<int>::max(),
+                              "GPU inverted list can only support "
+                              "%zu entries; %zu found",
+                              (size_t) std::numeric_limits<int>::max(),
+                              numVecs);
+
+      double t00 = faiss::getmillisecs();
+      for (size_t j = 0; j < numVecs; j++) {
+        memcpy(codes + (currIndex + j) * d, original_data + d * ivf->get_ids(i)[j], d * sizeof(float));
+      }
+      // printf("Time at %d: %.2f\n", faiss::getmillisecs() - t00);
+      tot += faiss::getmillisecs() - t00;
+      currIndex += numVecs;
+      index_->addCodeVectorsFromCpu(i, (const unsigned char*) codes, ivf->get_ids(i), numVecs);
+    }
+
+    printf("Time: %.2f\n", tot);
+
+    delete[] codes;
+  }*/
+}
+
+void
 GpuIndexIVFFlat::copyTo(faiss::IndexIVFFlat* index) const {
   DeviceScope scope(device_);
 
@@ -145,6 +236,35 @@ GpuIndexIVFFlat::copyTo(faiss::IndexIVFFlat* index) const {
                        listIndices.size(),
                        listIndices.data(),
                        (const uint8_t*) listData.data());
+    }
+  }
+}
+
+void
+GpuIndexIVFFlat::copyToWithoutCodes(faiss::IndexIVFFlat* index) const {
+  DeviceScope scope(device_);
+
+  // We must have the indices in order to copy to ourselves
+  FAISS_THROW_IF_NOT_MSG(ivfFlatConfig_.indicesOptions != INDICES_IVF,
+                         "Cannot copy to CPU as GPU index doesn't retain "
+                         "indices (INDICES_IVF)");
+
+
+  printf("Copy from gpu index to cpu without codes here.\n");
+  GpuIndexIVF::copyTo(index);
+  index->code_size = this->d * sizeof(float);
+
+  InvertedLists *ivf = new ArrayInvertedLists(nlist, index->code_size);
+  index->replace_invlists(ivf, true);
+
+  // Copy the inverted lists without codes
+  if (index_) {
+    for (int i = 0; i < nlist; ++i) {
+      auto listIndices = index_->getListIndices(i);
+
+      ivf->add_entries_without_codes(i,
+                       listIndices.size(),
+                       listIndices.data());
     }
   }
 }
@@ -211,6 +331,8 @@ GpuIndexIVFFlat::addImpl_(int n,
   // Device is already set in GpuIndex::add
   FAISS_ASSERT(index_);
   FAISS_ASSERT(n > 0);
+
+  printf("Add impl\n");
 
   auto stream = resources_->getDefaultStream(device_);
 

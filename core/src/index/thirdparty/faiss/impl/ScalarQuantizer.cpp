@@ -233,6 +233,16 @@ struct IVFSQScannerIP: InvertedListScanner {
         return nup;
     }
 
+    size_t scan_codes_outside (size_t list_size,
+                               const uint8_t *codes,
+                               const idx_t *ids,
+                               float *simi, idx_t *idxi,
+                               size_t k,
+                               ConcurrentBitsetPtr bitset) const override
+    {
+        FAISS_THROW_MSG ("not implemented");
+    }
+
     void scan_codes_range (size_t list_size,
                            const uint8_t *codes,
                            const idx_t *ids,
@@ -318,6 +328,16 @@ struct IVFSQScannerL2: InvertedListScanner {
             codes += code_size;
         }
         return nup;
+    }
+
+    size_t scan_codes_outside (size_t list_size,
+                               const uint8_t *codes,
+                               const idx_t *ids,
+                               float *simi, idx_t *idxi,
+                               size_t k,
+                               ConcurrentBitsetPtr bitset) const override
+    {
+        FAISS_THROW_MSG ("not implemented");
     }
 
     void scan_codes_range (size_t list_size,

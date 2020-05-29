@@ -175,6 +175,7 @@ Index *index_factory (int d, const char *description_in, MetricType metric)
         } else if (!index && (stok == "Flat" || stok == "FlatDedup")) {
             if (coarse_quantizer) {
                 // if there was an IVF in front, then it is an IVFFlat
+                printf("IVFFLAT index.\n");
                 IndexIVF *index_ivf = stok == "Flat" ?
                     new IndexIVFFlat (
                           coarse_quantizer, d, ncentroids, metric) :
