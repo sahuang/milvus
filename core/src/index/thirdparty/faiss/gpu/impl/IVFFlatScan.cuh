@@ -37,4 +37,26 @@ void runIVFFlatScan(Tensor<float, 2, true>& queries,
                     Tensor<long, 2, true>& outIndices,
                     GpuResources* res);
 
+
+void runIVFFlatScanWithoutCodes(Tensor<float, 2, true>& queries,
+                                Tensor<int, 2, true>& listIds,
+                                Tensor<uint8_t, 1, true>& bitset,
+                                Tensor<float, 1, true>& originalData,
+                                thrust::device_vector<void*>& listIndices,
+                                IndicesOptions indicesOptions,
+                                thrust::device_vector<int>& listLengths,
+                                int maxListLength,
+                                int k,
+                                faiss::MetricType metric,
+                                bool useResidual,
+                                Tensor<float, 3, true>& residualBase,
+                                GpuScalarQuantizer* scalarQ,
+                                // output
+                                Tensor<float, 2, true>& outDistances,
+                                // output
+                                Tensor<long, 2, true>& outIndices,
+                                GpuResources* res);
+    
+
+
 } } // namespace

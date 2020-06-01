@@ -82,6 +82,14 @@ class GpuIndexIVFSQHybrid : public GpuIndexIVF {
                    Index::idx_t* labels,
                    ConcurrentBitsetPtr bitset = nullptr) const override;
 
+  void searchImplWithoutCodes_(int n,
+                   const float* x,
+                   float* original_data,
+                   int k,
+                   float* distances,
+                   Index::idx_t* labels,
+                   ConcurrentBitsetPtr bitset = nullptr) const override;
+
   /// Called from train to handle SQ residual training
   void trainResiduals_(Index::idx_t n, const float* x);
 

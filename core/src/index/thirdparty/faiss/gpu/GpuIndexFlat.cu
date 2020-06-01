@@ -225,6 +225,17 @@ GpuIndexFlat::searchImpl_(int n,
                                              outLabels);
 }
 
+void 
+GpuIndexFlat::searchImplWithoutCodes_(int n,
+  const float* x,
+  float* original_data,
+  int k,
+  float* distances,
+  Index::idx_t* labels,
+  ConcurrentBitsetPtr bitset) const {
+    // do nothing
+  }
+
 void
 GpuIndexFlat::reconstruct(faiss::Index::idx_t key,
                           float* out) const {

@@ -75,6 +75,14 @@ class GpuIndex : public faiss::Index {
               Index::idx_t* labels,
               ConcurrentBitsetPtr bitset = nullptr) const override;
 
+  void search_without_codes(Index::idx_t n,
+              const float* x,
+              float* original_data,
+              Index::idx_t k,
+              float* distances,
+              Index::idx_t* labels,
+              ConcurrentBitsetPtr bitset = nullptr) const;
+
   /// Overridden to force GPU indices to provide their own GPU-friendly
   /// implementation
   void compute_residual(const float* x,
@@ -114,6 +122,14 @@ class GpuIndex : public faiss::Index {
                            Index::idx_t* labels,
                            ConcurrentBitsetPtr bitset = nullptr) const = 0;
 
+  virtual void searchImplWithoutCodes_(int n,
+                           const float* x,
+                           float* original_data,
+                           int k,
+                           float* distances,
+                           Index::idx_t* labels,
+                           ConcurrentBitsetPtr bitset = nullptr) const = 0;
+
 private:
   /// Handles paged adds if the add set is too large, passes to
   /// addImpl_ to actually perform the add for the current page
@@ -134,10 +150,26 @@ private:
                        Index::idx_t* outIndicesData,
                        ConcurrentBitsetPtr bitset = nullptr) const;
 
+  void searchNonPagedWithoutCodes_(int n,
+                       const float* x,
+                       float* original_data,
+                       int k,
+                       float* outDistancesData,
+                       Index::idx_t* outIndicesData,
+                       ConcurrentBitsetPtr bitset = nullptr) const;
+
   /// Calls searchImpl_ for a single page of GPU-resident data,
   /// handling paging of the data and copies from the CPU
   void searchFromCpuPaged_(int n,
                            const float* x,
+                           int k,
+                           float* outDistancesData,
+                           Index::idx_t* outIndicesData,
+                           ConcurrentBitsetPtr bitset = nullptr) const;
+
+  void searchFromCpuPagedWithoutCodes_(int n,
+                           const float* x,
+                           float* original_data,
                            int k,
                            float* outDistancesData,
                            Index::idx_t* outIndicesData,

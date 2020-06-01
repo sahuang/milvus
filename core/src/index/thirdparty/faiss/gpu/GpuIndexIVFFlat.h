@@ -78,6 +78,14 @@ class GpuIndexIVFFlat : public GpuIndexIVF {
                    Index::idx_t* labels,
                    ConcurrentBitsetPtr bitset = nullptr) const override;
 
+  void searchImplWithoutCodes_(int n,
+                   const float* x,
+                   float* original_data,
+                   int k,
+                   float* distances,
+                   Index::idx_t* labels,
+                   ConcurrentBitsetPtr bitset = nullptr) const override;
+
  private:
   GpuIndexIVFFlatConfig ivfFlatConfig_;
 

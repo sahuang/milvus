@@ -324,6 +324,17 @@ GpuIndexIVFSQHybrid::addImpl_(int n,
   ntotal += n;
 }
 
+void 
+GpuIndexIVFSQHybrid::searchImplWithoutCodes_(int n,
+  const float* x,
+  float* original_data,
+  int k,
+  float* distances,
+  Index::idx_t* labels,
+  ConcurrentBitsetPtr bitset) const {
+    // dd
+  }
+
 void
 GpuIndexIVFSQHybrid::searchImpl_(int n,
                                         const float* x,
