@@ -102,6 +102,7 @@ struct IVFFlatScan {
       // Handle remainder by a single thread, if any
       // Not needed if we decode 1 dim per time
       if (Codec::kDimPerIter > 1) {
+        printf("Never happens\n");
         int realDim = limit * Codec::kDimPerIter;
 
         // Was there any remainder?
@@ -131,6 +132,8 @@ struct IVFFlatScan {
   static __device__ void scanWithoutCodes(float* query,
                               bool useResidual,
                               float* residualBaseSlice,
+                              uint8_t* indexData,
+                              float* originalData,
                               const Codec& codec,
                               const Metric& metric,
                               int numVecs,
@@ -162,7 +165,7 @@ struct IVFFlatScan {
         float vecVal[Codec::kDimPerIter];
 
         // Decode the kDimPerIter dimensions
-        //codec.decode(vecData, vec, d, vecVal);
+        codec.decode(originalData + realDim * indexData[vec], 0, d, vecVal);
 
 #pragma unroll
         for (int j = 0; j < Codec::kDimPerIter; ++j) {
@@ -175,24 +178,6 @@ struct IVFFlatScan {
         }
       }
 
-      // Handle remainder by a single thread, if any
-      // Not needed if we decode 1 dim per time
-      if (Codec::kDimPerIter > 1) {
-        int realDim = limit * Codec::kDimPerIter;
-
-        // Was there any remainder?
-        if (realDim < dim) {
-          // Let the first threads in the block sequentially perform it
-          int remainderDim = realDim + laneId;
-
-          if (remainderDim < dim) {
-            //float vecVal =
-              //codec.decodePartial(vecData, vec, limit, laneId);
-            //vecVal += useResidual ? residualBaseSlice[remainderDim] : 0.0f;
-            //dist.handle(query[remainderDim], vecVal);
-          }
-        }
-      }
 
       // Reduce distance within warp
       auto warpDist = warpReduceAllSum(dist.reduce());
@@ -306,6 +291,8 @@ ivfFlatScanWithoutCodes(Tensor<float, 2, true> queries,
   IVFFlatScan<Codec, Metric>::scanWithoutCodes(query,
                                    useResidual,
                                    residualBaseSlice,
+                                   (uint8_t *)indices,
+                                   originalData.data(),
                                    codec,
                                    metric,
                                    numVecs,
