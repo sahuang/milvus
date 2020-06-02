@@ -395,7 +395,7 @@
    // Data is already resident on the GPU
    Tensor<float, 2, true> queries(const_cast<float*>(x), {n, (int) this->d});
    Tensor<float, 2, true> outDistances(distances, {n, k});
-   Tensor<float, 1, true> originalData(original_data, {((int) this->ntotal) * ((int) this->d)});
+   auto originalData = toDevice<float, 1>(resources_, device_, original_data, stream, {((int) this->ntotal) * ((int) this->d)});
  
    static_assert(sizeof(long) == sizeof(Index::idx_t), "size mismatch");
    Tensor<long, 2, true> outLabels(const_cast<long*>(labels), {n, k});

@@ -132,7 +132,7 @@ struct IVFFlatScan {
   static __device__ void scanWithoutCodes(float* query,
                               bool useResidual,
                               float* residualBaseSlice,
-                              uint8_t* indexData,
+                              int64_t* indexData,
                               float* originalData,
                               const Codec& codec,
                               const Metric& metric,
@@ -165,7 +165,7 @@ struct IVFFlatScan {
         float vecVal[Codec::kDimPerIter];
 
         // Decode the kDimPerIter dimensions
-        codec.decode(originalData + realDim * indexData[vec], 0, d, vecVal);
+        codec.decode(originalData + d * indexData[vec], 0, d, vecVal);
 
 #pragma unroll
         for (int j = 0; j < Codec::kDimPerIter; ++j) {
@@ -277,10 +277,6 @@ ivfFlatScanWithoutCodes(Tensor<float, 2, true> queries,
   // auto vecs = allListData[listId];
   auto numVecs = listLengths[listId];
   auto dim = queries.getSize(1);
-  //float* vecs = new float[numVecs * dim];
-  //for (auto i = 0; i < numVecs; i++) {
-  //  memcpy(vecs + i * dim, originalData[indices[i] * dim], dim * sizeof(float));
-  //}
 
   auto distanceOut = distance[outBase].data();
 
@@ -291,7 +287,7 @@ ivfFlatScanWithoutCodes(Tensor<float, 2, true> queries,
   IVFFlatScan<Codec, Metric>::scanWithoutCodes(query,
                                    useResidual,
                                    residualBaseSlice,
-                                   (uint8_t *)indices,
+                                   (int64_t *)indices,
                                    originalData.data(),
                                    codec,
                                    metric,
