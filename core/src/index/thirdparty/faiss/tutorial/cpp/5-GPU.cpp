@@ -94,7 +94,7 @@ int main() {
     faiss::Index *cpu_index = nullptr;
     faiss::IndexIVF* cpu_ivf_index = nullptr;
 
-    long nb = 5000000;                       // database size
+    long nb = 50000;                       // database size
 //        printf("-----------------------\n");
     long size = d * nb;
     float *xb = new float[size];
