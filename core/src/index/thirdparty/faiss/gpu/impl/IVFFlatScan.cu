@@ -165,7 +165,7 @@ struct IVFFlatScan {
         float vecVal[Codec::kDimPerIter];
 
         // Decode the kDimPerIter dimensions
-        codec.decode(originalData + d * indexData[vec], 0, d, vecVal);
+        codec.decode(originalData + dim * indexData[vec], 0, d, vecVal);
 
 #pragma unroll
         for (int j = 0; j < Codec::kDimPerIter; ++j) {
