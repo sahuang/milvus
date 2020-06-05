@@ -363,8 +363,9 @@
 
    printf("Device vector\n");
    std::unique_ptr<DeviceVector<float>> deviceOriginalData;
+   int64_t lengthInBytes = this->d * sizeof(float);
    deviceOriginalData->append(original_data,
-                              ((int) this->ntotal) * ((int) this->d),
+                              this->ntotal * lengthInBytes,
                               stream,
                               true /* exact reserved size */);
    printf("success.\n");
