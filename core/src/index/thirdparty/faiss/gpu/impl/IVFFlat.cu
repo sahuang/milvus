@@ -105,20 +105,6 @@ IVFFlat::copyCodeVectorsFromCpu(const float* vecs,
 }
 
 void
-IVFFlat::copyFromCpuWithoutCodes(const long* indices,
-                                 const std::vector<size_t>& list_length) {
-    FAISS_ASSERT_FMT(list_length.size() == this->getNumLists(), "Expect list size %zu but %zu received!",
-                     this->getNumLists(), list_length.size());
-
-    int64_t numVecs = std::accumulate(list_length.begin(), list_length.end(), 0);
-    if (numVecs == 0) {
-        return;
-    }
-
-    copyIndicesFromCpu_(indices, list_length);
-}
-
-void
 IVFFlat::addCodeVectorsFromCpu(int listId,
                                const unsigned char* vecs,
                                const long* indices,
