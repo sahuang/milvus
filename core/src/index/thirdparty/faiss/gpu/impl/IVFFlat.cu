@@ -105,6 +105,20 @@ IVFFlat::copyCodeVectorsFromCpu(const float* vecs,
 }
 
 void
+IVFFlat::copyFromCpuWithoutCodes(const long* indices,
+                                 const std::vector<size_t>& list_length) {
+    FAISS_ASSERT_FMT(list_length.size() == this->getNumLists(), "Expect list size %zu but %zu received!",
+                     this->getNumLists(), list_length.size());
+
+    int64_t numVecs = std::accumulate(list_length.begin(), list_length.end(), 0);
+    if (numVecs == 0) {
+        return;
+    }
+
+    copyIndicesFromCpu_(indices, list_length);
+}
+
+void
 IVFFlat::addCodeVectorsFromCpu(int listId,
                                const unsigned char* vecs,
                                const long* indices,
@@ -310,8 +324,6 @@ IVFFlat::classifyAndAddVectors(Tensor<float, 2, true>& vecs,
   // We similarly need to actually append the new vectors
   {
     DeviceTensor<int, 1, true> listOffset(mem, listOffsetHost, stream);
-
-    printf("runIVFFlatInvertedListAppend\n");
 
     // Now, for each list to which a vector is being assigned, write it
     runIVFFlatInvertedListAppend(listIds,

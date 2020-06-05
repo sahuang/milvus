@@ -123,89 +123,58 @@
  
  void
  GpuIndexIVFFlat::copyFromWithoutCodes(const faiss::IndexIVFFlat* index, const float* original_data) {
-   DeviceScope scope(device_);
+  DeviceScope scope(device_);
  
-   GpuIndexIVF::copyFrom(index);
- 
-   // Clear out our old data
-   delete index_;
-   index_ = nullptr;
- 
-   // The other index might not be trained
-   if (!index->is_trained) {
-     FAISS_ASSERT(!is_trained);
-     return;
-   }
- 
-   // Otherwise, we can populate ourselves from the other index
-   FAISS_ASSERT(is_trained);
- 
-   // Copy our lists as well
-   index_ = new IVFFlat(resources_,
-                        quantizer->getGpuData(),
-                        index->metric_type,
-                        index->metric_arg,
-                        false, // no residual
-                        nullptr, // no scalar quantizer
-                        ivfFlatConfig_.indicesOptions,
-                        memorySpace_);
-   InvertedLists *ivf = index->invlists;
- 
-   printf("Copy from cpu index to gpu without codes here.\n");
+  GpuIndexIVF::copyFrom(index);
 
-   auto nlist = ivf->nlist;
-   size_t *start = new size_t[nlist];
-   auto totalVecs = ivf->list_size(0);
-   start[0] = 0;
-   for (size_t i = 1; i < nlist; ++i) {
-     start[i] = totalVecs;
-     totalVecs += ivf->list_size(i);
-   }
- 
-   size_t d = index->d;
-   float *codes = new float[totalVecs * d];
+  // Clear out our old data
+  delete index_;
+  index_ = nullptr;
 
-   if (ReadOnlyArrayInvertedLists* rol = dynamic_cast<ReadOnlyArrayInvertedLists*>(ivf)) {
-     double t00 = faiss::getmillisecs();
-#pragma omp parallel for
-     for (size_t i = 0; i < nlist; ++i) {
-       auto numVecs = ivf->list_size(i);
-       for (size_t j = 0; j < numVecs; j++) {
-         memcpy(codes + (start[i] + j) * d, original_data + d * ivf->get_ids(i)[j], d * sizeof(float));
-       }
-     }
+  // The other index might not be trained
+  if (!index->is_trained) {
+    FAISS_ASSERT(!is_trained);
+    return;
+  }
 
-     printf("Time spent on memcpy: %.2f\n", faiss::getmillisecs() - t00);
- 
-     index_->copyCodeVectorsFromCpu((const float* )codes,
-                                    (const long *)(rol->pin_readonly_ids->data), rol->readonly_length);
- 
-   }
-   /*
-   
-   else {
-     for (size_t i = 0; i < ivf->nlist; ++i) {
-       auto numVecs = ivf->list_size(i);
-       // GPU index can only support max int entries per list
-       FAISS_THROW_IF_NOT_FMT(numVecs <=
-                               (size_t) std::numeric_limits<int>::max(),
-                               "GPU inverted list can only support "
-                               "%zu entries; %zu found",
-                               (size_t) std::numeric_limits<int>::max(),
-                               numVecs);
-       double t00 = faiss::getmillisecs();
-       for (size_t j = 0; j < numVecs; j++) {
-         memcpy(codes + (currIndex + j) * d, original_data + d * ivf->get_ids(i)[j], d * sizeof(float));
-       }
-       // printf("Time at %d: %.2f\n", faiss::getmillisecs() - t00);
-       tot += faiss::getmillisecs() - t00;
-       currIndex += numVecs;
-       index_->addCodeVectorsFromCpu(i, (const unsigned char*) codes, ivf->get_ids(i), numVecs);
-     }
-     printf("Time: %.2f\n", tot);
-     delete[] codes;
-   }*/
- }
+  // Otherwise, we can populate ourselves from the other index
+  FAISS_ASSERT(is_trained);
+
+  // Copy our lists as well
+  index_ = new IVFFlat(resources_,
+                       quantizer->getGpuData(),
+                       index->metric_type,
+                       index->metric_arg,
+                       false, // no residual
+                       nullptr, // no scalar quantizer
+                       ivfFlatConfig_.indicesOptions,
+                       memorySpace_);
+  InvertedLists *ivf = index->invlists;
+
+  if (ReadOnlyArrayInvertedLists* rol = dynamic_cast<ReadOnlyArrayInvertedLists*>(ivf)) {
+    index_->copyCodeVectorsFromCpu((const float* )(rol->pin_readonly_codes->data),
+                                   (const long *)(rol->pin_readonly_ids->data), rol->readonly_length);
+    /* double t0 = getmillisecs(); */
+    /* std::cout << "Readonly Takes " << getmillisecs() - t0 << " ms" << std::endl; */
+  } else {
+    for (size_t i = 0; i < ivf->nlist; ++i) {
+      auto numVecs = ivf->list_size(i);
+
+      // GPU index can only support max int entries per list
+      FAISS_THROW_IF_NOT_FMT(numVecs <=
+                             (size_t) std::numeric_limits<int>::max(),
+                             "GPU inverted list can only support "
+                             "%zu entries; %zu found",
+                             (size_t) std::numeric_limits<int>::max(),
+                             numVecs);
+
+      index_->addCodeVectorsFromCpu(i,
+                                    (const unsigned char*)(ivf->get_codes(i)),
+                                    ivf->get_ids(i),
+                                    numVecs);
+    }
+  }
+}
  
  void
  GpuIndexIVFFlat::copyTo(faiss::IndexIVFFlat* index) const {
@@ -245,8 +214,6 @@
                           "Cannot copy to CPU as GPU index doesn't retain "
                           "indices (INDICES_IVF)");
  
- 
-   printf("Copy from gpu index to cpu without codes here.\n");
    GpuIndexIVF::copyTo(index);
    index->code_size = this->d * sizeof(float);
  
@@ -327,8 +294,6 @@
    // Device is already set in GpuIndex::add
    FAISS_ASSERT(index_);
    FAISS_ASSERT(n > 0);
- 
-   printf("Add impl\n");
  
    auto stream = resources_->getDefaultStream(device_);
  
