@@ -457,8 +457,6 @@ IVFFlat::queryWithoutCodes(Tensor<float, 2, true>& queries,
     quantizer_->reconstruct(coarseIndices, residualBase);
   }
 
-  printf("query without codes\n");
-
   runIVFFlatScanWithoutCodes(queries,
                  coarseIndices,
                  bitset,

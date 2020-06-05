@@ -361,21 +361,7 @@
    Tensor<float, 2, true> queries(const_cast<float*>(x), {n, (int) this->d});
    Tensor<float, 2, true> outDistances(distances, {n, k});
 
-   /*
-   printf("Device vector\n");
-   std::unique_ptr<DeviceVector<float>> deviceOriginalData;
-   int64_t lengthInBytes = this->d * sizeof(float);
-   deviceOriginalData->append(original_data,
-                              this->ntotal * lengthInBytes,
-                              stream,
-                              true);
-   printf("success.\n");
-   */
-
-   printf("ntotal=%d, d = %d\n", this->ntotal, this->d);
-   printf("Fine here\n");
    auto originalData = toDevice<float, 1>(resources_, device_, original_data, stream, {((int) this->ntotal) * ((int) this->d)});
-   printf("==========Error==========\n");
  
    static_assert(sizeof(long) == sizeof(Index::idx_t), "size mismatch");
    Tensor<long, 2, true> outLabels(const_cast<long*>(labels), {n, k});

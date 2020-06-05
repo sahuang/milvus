@@ -140,7 +140,7 @@ struct IVFFlatScan {
                               int dim,
                               float* distanceOut) {
     // How many separate loading points are there for the decoder?
-    int limit = utils::divDown(dim, Codec::kDimPerIter);
+    int limit = dim;
 
     // Each warp handles a separate chunk of vectors
     int warpId = threadIdx.x / kWarpSize;
@@ -161,23 +161,14 @@ struct IVFFlatScan {
       // as the decoder may handle more than one dimension at once (leaving the
       // remainder to be handled separately)
       for (int d = laneId; d < limit; d += kWarpSize) {
-        int realDim = d * Codec::kDimPerIter;
-        float vecVal[Codec::kDimPerIter];
+        int realDim = d;
+        float vecVal[1];
 
         // Decode the kDimPerIter dimensions
         codec.decode(originalData + dim * indexData[vec], 0, d, vecVal);
-
-#pragma unroll
-        for (int j = 0; j < Codec::kDimPerIter; ++j) {
-          vecVal[j] += useResidual ? residualBaseSlice[realDim + j] : 0.0f;
-        }
-
-#pragma unroll
-        for (int j = 0; j < Codec::kDimPerIter; ++j) {
-          dist.handle(query[realDim + j], vecVal[j]);
-        }
+        vecVal[0] += useResidual ? residualBaseSlice[realDim] : 0.0f;
+        dist.handle(query[realDim], vecVal[0]);
       }
-
 
       // Reduce distance within warp
       auto warpDist = warpReduceAllSum(dist.reduce());
