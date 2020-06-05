@@ -361,14 +361,16 @@
    Tensor<float, 2, true> queries(const_cast<float*>(x), {n, (int) this->d});
    Tensor<float, 2, true> outDistances(distances, {n, k});
 
+   /*
    printf("Device vector\n");
    std::unique_ptr<DeviceVector<float>> deviceOriginalData;
    int64_t lengthInBytes = this->d * sizeof(float);
    deviceOriginalData->append(original_data,
                               this->ntotal * lengthInBytes,
                               stream,
-                              true /* exact reserved size */);
+                              true);
    printf("success.\n");
+   */
 
    printf("ntotal=%d, d = %d\n", this->ntotal, this->d);
    printf("Fine here\n");
