@@ -161,16 +161,11 @@ struct IVFFlatScan {
       // as the decoder may handle more than one dimension at once (leaving the
       // remainder to be handled separately)
       for (int d = laneId; d < limit; d += kWarpSize) {
-        int realDim = d;
-        float vecVal[1];
-
         // Decode the kDimPerIter dimensions
         // codec.decode((float *)originalData + dim * indexData[vec], 0, d, vecVal);
         float* p = (float*) &((uint8_t*) (originalData + dim * indexData[vec]))[0];
-        vecVal[0] = p[d];
-        
-        vecVal[0] += useResidual ? residualBaseSlice[realDim] : 0.0f;
-        dist.handle(query[realDim], vecVal[0]);
+        float vecVal = p[d];
+        dist.handle(query[realDim], vecVal);
       }
 
       // Reduce distance within warp
