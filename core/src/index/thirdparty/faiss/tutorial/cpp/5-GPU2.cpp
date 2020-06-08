@@ -106,25 +106,25 @@ int main() {
         float *D = new float[k * nq];
 
         double t2 = getmillisecs();
-        auto cpu_to_gpu = faiss::gpu::index_cpu_to_gpu_without_codes(&res, device_id, cpu_index, xb, option);
-        printf("cpu to gpu without codes time: %0.2f\n", getmillisecs() - t2);
+        auto cpu_to_gpu = faiss::gpu::index_cpu_to_gpu(&res, device_id, cpu_index, option);
+        printf("cpu to gpu time: %0.2f\n", getmillisecs() - t2);
         t2 = getmillisecs();
 
-        auto cpuindex = faiss::gpu::index_gpu_to_cpu_without_codes (cpu_to_gpu);
-        printf("gpu to cpu without codes time: %0.2f\n", getmillisecs() - t2);
+        auto cpuindex = faiss::gpu::index_gpu_to_cpu(cpu_to_gpu);
+        printf("gpu to cpu time: %0.2f\n", getmillisecs() - t2);
 
         faiss::IndexIVF* ivf_index = dynamic_cast<faiss::IndexIVF*>(cpuindex);
         ivf_index->nprobe = nprobe;
         t2 = getmillisecs();
-        ivf_index->search_without_codes(nq, xq, xb, k, D, I);
-        printf("cpu without codes execution time: %0.2f\n", getmillisecs() - t2);
+        ivf_index->search(nq, xq, k, D, I);
+        printf("cpu execution time: %0.2f\n", getmillisecs() - t2);
 
         auto cpu_to_gpu_ivf_ptr = std::shared_ptr<faiss::Index>(cpu_to_gpu);
         faiss::gpu::GpuIndexIVF* gpu_index_ivf = dynamic_cast<faiss::gpu::GpuIndexIVF*>(cpu_to_gpu_ivf_ptr.get());
         gpu_index_ivf->setNumProbes(nprobe);
         t2 = getmillisecs();
-        gpu_index_ivf->search_without_codes(nq, xq, xb, k, D, I);
-        printf("gpu without codes execution time: %0.2f\n", getmillisecs() - t2);
+        gpu_index_ivf->search(nq, xq, k, D, I);
+        printf("gpu execution time: %0.2f\n", getmillisecs() - t2);
 
         printf("I=\n");
         for(int i = 0; i < 5; i++) {
