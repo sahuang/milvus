@@ -133,7 +133,7 @@ struct IVFFlatScan {
                               bool useResidual,
                               float* residualBaseSlice,
                               int64_t* indexData,
-                              float* originalData,
+                              const float* __restrict__ originalData,
                               const Codec& codec,
                               const Metric& metric,
                               int numVecs,
@@ -165,7 +165,10 @@ struct IVFFlatScan {
         float vecVal[1];
 
         // Decode the kDimPerIter dimensions
-        codec.decode(originalData + dim * indexData[vec], 0, d, vecVal);
+        // codec.decode((float *)originalData + dim * indexData[vec], 0, d, vecVal);
+        float* p = (float*) &((uint8_t*) (originalData + dim * indexData[vec]))[0];
+        vecVal[0] = p[d];
+        
         vecVal[0] += useResidual ? residualBaseSlice[realDim] : 0.0f;
         dist.handle(query[realDim], vecVal[0]);
       }
@@ -241,7 +244,7 @@ ivfFlatScanWithoutCodes(Tensor<float, 2, true> queries,
             bool useResidual,
             Tensor<float, 3, true> residualBase,
             Tensor<int, 2, true> listIds,
-            Tensor<float, 1, true> originalData,
+            const float* __restrict__ originalData,
             void** indicesData,
             int* listLengths,
             Codec codec,
@@ -279,7 +282,7 @@ ivfFlatScanWithoutCodes(Tensor<float, 2, true> queries,
                                    useResidual,
                                    residualBaseSlice,
                                    (int64_t *)indices,
-                                   originalData.data(),
+                                   originalData,
                                    codec,
                                    metric,
                                    numVecs,
@@ -533,7 +536,7 @@ runIVFFlatScanTileWithoutCodes(Tensor<float, 2, true>& queries,
         useResidual,                                                    \
         residualBase,                                                   \
         listIds,                                                        \
-        originalData,                                                   \
+        originalData.data(),                                            \
         listIndices.data().get(),                                       \
         listLengths.data().get(),                                       \
         codec,                                                          \
