@@ -139,9 +139,6 @@ struct IVFFlatScan {
                               int numVecs,
                               int dim,
                               float* distanceOut) {
-    // How many separate loading points are there for the decoder?
-    int limit = dim;
-
     // Each warp handles a separate chunk of vectors
     int warpId = threadIdx.x / kWarpSize;
     // FIXME: why does getLaneId() not work when we write out below!?!?!
@@ -160,12 +157,12 @@ struct IVFFlatScan {
       // Scan the dimensions availabe that have whole units for the decoder,
       // as the decoder may handle more than one dimension at once (leaving the
       // remainder to be handled separately)
-      for (int d = laneId; d < limit; d += kWarpSize) {
+      for (int d = laneId; d < dim; d += kWarpSize) {
         // Decode the kDimPerIter dimensions
         // codec.decode((float *)originalData + dim * indexData[vec], 0, d, vecVal);
         float* p = (float*) &((uint8_t*) (originalData + dim * indexData[vec]))[0];
         float vecVal = p[d];
-        dist.handle(query[realDim], vecVal);
+        dist.handle(query[d], vecVal);
       }
 
       // Reduce distance within warp
