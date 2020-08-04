@@ -311,8 +311,8 @@ IVF_NM::QueryImpl(int64_t n, const float* data, int64_t k, float* distances, int
         ivf_index->parallel_mode = 0;
     }
     bool is_sq8 = (index_type_ == IndexEnum::INDEX_FAISS_IVFSQ8) ? true : false;
-    ivf_index->search_without_codes(n, (float*)data, (const uint8_t*)data_.get(), is_sq8, k, distances,
-                                    labels, bitset_);
+    ivf_index->search_without_codes(n, (float*)data, (const uint8_t*)data_.get(), is_sq8, k, distances, labels,
+                                    bitset_);
     stdclock::time_point after = stdclock::now();
     double search_cost = (std::chrono::duration<double, std::micro>(after - before)).count();
     LOG_KNOWHERE_DEBUG_ << "IVF_NM search cost: " << search_cost

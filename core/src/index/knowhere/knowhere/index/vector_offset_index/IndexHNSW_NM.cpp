@@ -117,7 +117,7 @@ IndexHNSW_NM::Add(const DatasetPtr& dataset_ptr, const Config& config) {
         faiss::BuilderSuspend::check_wait();
         index_->addPoint(pp_data, p_ids[i], base, i);
     }
-    
+
     return nullptr;
 }
 
