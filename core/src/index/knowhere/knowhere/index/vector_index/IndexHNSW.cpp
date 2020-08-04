@@ -95,7 +95,7 @@ IndexHNSW::Train(const DatasetPtr& dataset_ptr, const Config& config) {
     }
 }
 
-void
+std::unique_ptr<std::vector<int64_t>>
 IndexHNSW::Add(const DatasetPtr& dataset_ptr, const Config& config) {
     if (!index_) {
         KNOWHERE_THROW_MSG("index not initialize");
@@ -129,6 +129,8 @@ IndexHNSW::Add(const DatasetPtr& dataset_ptr, const Config& config) {
         faiss::BuilderSuspend::check_wait();
         index_->addPoint(((float*)p_data + Dim() * i), p_ids[i]);
     }
+
+    return nullptr;
 }
 
 DatasetPtr

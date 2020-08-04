@@ -48,6 +48,9 @@ struct IndexBinaryIVF : IndexBinary {
     /// map for direct access to the elements. Enables reconstruct().
     DirectMap direct_map;
 
+    /// size nlist
+    std::vector<size_t> prefix_sum;
+
     IndexBinary *quantizer;   ///< quantizer that maps vectors to inverted lists
     size_t nlist;             ///< number of possible key values
 
@@ -214,6 +217,7 @@ struct BinaryInvertedListScanner {
     virtual size_t scan_codes (size_t n,
                                const uint8_t *codes,
                                const idx_t *ids,
+                               size_t offset,
                                int32_t *distances, idx_t *labels,
                                size_t k,
                                ConcurrentBitsetPtr bitset = nullptr) const = 0;

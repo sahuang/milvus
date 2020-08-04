@@ -39,7 +39,7 @@ class IDMAP : public VecIndex, public FaissBaseIndex {
     void
     Train(const DatasetPtr&, const Config&) override;
 
-    void
+    std::unique_ptr<std::vector<int64_t>>
     Add(const DatasetPtr&, const Config&) override;
 
     void

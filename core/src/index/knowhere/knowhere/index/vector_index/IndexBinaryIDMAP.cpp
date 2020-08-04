@@ -128,7 +128,7 @@ BinaryIDMAP::Dim() {
     return index_->d;
 }
 
-void
+std::unique_ptr<std::vector<int64_t>>
 BinaryIDMAP::Add(const DatasetPtr& dataset_ptr, const Config& config) {
     if (!index_) {
         KNOWHERE_THROW_MSG("index not initialize");
@@ -138,6 +138,8 @@ BinaryIDMAP::Add(const DatasetPtr& dataset_ptr, const Config& config) {
     GET_TENSOR_DATA_ID(dataset_ptr)
 
     index_->add_with_ids(rows, (uint8_t*)p_data, p_ids);
+
+    return nullptr;
 }
 
 void

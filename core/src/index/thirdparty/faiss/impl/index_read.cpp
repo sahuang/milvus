@@ -360,15 +360,15 @@ InvertedLists *read_InvertedLists_nm (IOReader *f, int io_flags) {
         ails->ids.resize (ails->nlist);
         std::vector<size_t> sizes (ails->nlist);
         read_ArrayInvertedLists_sizes (f, sizes);
-        for (size_t i = 0; i < ails->nlist; i++) {
-            ails->ids[i].resize (sizes[i]);
-        }
-        for (size_t i = 0; i < ails->nlist; i++) {
-            size_t n = ails->ids[i].size();
-            if (n > 0) {
-                READANDCHECK (ails->ids[i].data(), n);
-            }
-        }
+        //for (size_t i = 0; i < ails->nlist; i++) {
+        //    ails->ids[i].resize (sizes[i]);
+        //}
+        //for (size_t i = 0; i < ails->nlist; i++) {
+        //    size_t n = ails->ids[i].size();
+        //    if (n > 0) {
+        //        READANDCHECK (ails->ids[i].data(), n);
+        //    }
+        //}
         return ails;
     } else if (h == fourcc ("ilar") && (io_flags & IO_FLAG_MMAP)) {
         // then we load it as an OnDiskInvertedLists
@@ -498,6 +498,7 @@ static void read_ivf_header (
     read_index_header (ivf, f);
     READ1 (ivf->nlist);
     READ1 (ivf->nprobe);
+    READVECTOR (ivf->prefix_sum);
     ivf->quantizer = read_index (f);
     ivf->own_fields = true;
     if (ids) { // used in legacy "Iv" formats
@@ -904,6 +905,7 @@ static void read_binary_ivf_header (
     read_index_binary_header (ivf, f);
     READ1 (ivf->nlist);
     READ1 (ivf->nprobe);
+    READVECTOR (ivf->prefix_sum);
     ivf->quantizer = read_index_binary (f);
     ivf->own_fields = true;
     if (ids) { // used in legacy "Iv" formats

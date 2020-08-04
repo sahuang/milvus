@@ -44,7 +44,7 @@ class IVF : public VecIndex, public FaissBaseIndex {
     void
     Train(const DatasetPtr&, const Config&) override;
 
-    void
+    std::unique_ptr<std::vector<int64_t>>
     Add(const DatasetPtr&, const Config&) override;
 
     void
@@ -93,6 +93,7 @@ class IVF : public VecIndex, public FaissBaseIndex {
 
  protected:
     std::mutex mutex_;
+    std::vector<size_t> prefix_sum;
 };
 
 using IVFPtr = std::shared_ptr<IVF>;

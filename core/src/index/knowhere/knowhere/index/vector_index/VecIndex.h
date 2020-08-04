@@ -31,16 +31,16 @@ namespace knowhere {
 
 class VecIndex : public Index {
  public:
-    virtual void
+    virtual std::unique_ptr<std::vector<int64_t>>
     BuildAll(const DatasetPtr& dataset_ptr, const Config& config) {
         Train(dataset_ptr, config);
-        Add(dataset_ptr, config);
+        return Add(dataset_ptr, config);
     }
 
     virtual void
     Train(const DatasetPtr& dataset, const Config& config) = 0;
 
-    virtual void
+    virtual std::unique_ptr<std::vector<int64_t>>
     Add(const DatasetPtr& dataset, const Config& config) = 0;
 
     virtual void

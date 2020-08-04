@@ -170,6 +170,37 @@ BinaryIVF::Train(const DatasetPtr& dataset_ptr, const Config& config) {
     index->train(rows, (uint8_t*)p_data);
     index->add_with_ids(rows, (uint8_t*)p_data, p_ids);
     index_ = index;
+
+    // get "map" of invlist ids to subsequent ids
+    // also generate prefix_sum array
+    ids_map.resize(rows);
+    auto ivf_index = dynamic_cast<faiss::IndexBinaryIVF*>(index_.get());
+    auto invlists = ivf_index->invlists;
+    ivf_index->prefix_sum.resize(nlist);
+    size_t curr_index = 0;
+#ifndef MILVUS_GPU_VERSION
+    auto ails = dynamic_cast<faiss::ArrayInvertedLists*>(invlists);
+    for (size_t i = 0; i < nlist; i++) {
+        auto list_size = ails->ids[i].size();
+        for (size_t j = 0; j < list_size; j++) {
+            ids_map[ails->ids[i][j]] = curr_index + j;
+        }
+        ivf_index->prefix_sum[i] = curr_index;
+        curr_index += list_size;
+    }
+#else
+    auto rol = dynamic_cast<faiss::ReadOnlyArrayInvertedLists*>(invlists);
+    auto lengths = rol->readonly_length;
+    auto rol_ids = (const int64_t*)rol->pin_readonly_ids->data;
+    for (size_t i = 0; i < nlist; i++) {
+        auto list_size = lengths[i];
+        for (size_t j = 0; j < list_size; j++) {
+            ids_map[rol_ids[curr_index + j]] = curr_index + j;
+        }
+        ivf_index->prefix_sum[i] = curr_index;
+        curr_index += list_size;
+    }
+#endif
 }
 
 #if 0

@@ -122,6 +122,9 @@ struct IndexIVF: Index, Level1Quantizer {
      *  enables reconstruct() */
     DirectMap direct_map;
 
+    /// size nlist
+    std::vector<size_t> prefix_sum;
+
     /** The Inverted file takes a quantizer (an Index) on input,
      * which implements the function mapping a vector to a list
      * identifier. The pointer is borrowed: the quantizer should not
@@ -195,8 +198,7 @@ struct IndexIVF: Index, Level1Quantizer {
 
     /** Similar to search_preassigned, but does not store codes **/
     virtual void search_preassigned_without_codes (idx_t n, const float *x, 
-                                                   const uint8_t *arranged_codes, 
-                                                   std::vector<size_t> prefix_sum, 
+                                                   const uint8_t *arranged_codes,
                                                    bool is_sq8, idx_t k,
                                                    const idx_t *assign,
                                                    const float *centroid_dis,
@@ -212,7 +214,7 @@ struct IndexIVF: Index, Level1Quantizer {
 
     /** Similar to search, but does not store codes **/
     void search_without_codes (idx_t n, const float *x, 
-                               const uint8_t *arranged_codes, std::vector<size_t> prefix_sum, 
+                               const uint8_t *arranged_codes,
                                bool is_sq8, idx_t k, float *distances, idx_t *labels,
                                ConcurrentBitsetPtr bitset = nullptr);
 
@@ -379,6 +381,7 @@ struct InvertedListScanner {
     virtual size_t scan_codes (size_t n,
                                const uint8_t *codes,
                                const idx_t *ids,
+                               size_t offset,
                                float *distances, idx_t *labels,
                                size_t k,
                                ConcurrentBitsetPtr bitset = nullptr) const = 0;

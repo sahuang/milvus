@@ -64,7 +64,6 @@ set(faiss_srcs
         ${INDEX_SOURCE_DIR}/knowhere/knowhere/index/vector_index/IndexIVFPQ.cpp
         ${INDEX_SOURCE_DIR}/knowhere/knowhere/index/vector_offset_index/OffsetBaseIndex.cpp
         ${INDEX_SOURCE_DIR}/knowhere/knowhere/index/vector_offset_index/IndexIVF_NM.cpp
-        ${INDEX_SOURCE_DIR}/knowhere/knowhere/index/vector_offset_index/IndexIVFSQNR_NM.cpp
         )
 if (MILVUS_GPU_VERSION)
 set(faiss_srcs ${faiss_srcs}
@@ -75,7 +74,6 @@ set(faiss_srcs ${faiss_srcs}
         ${INDEX_SOURCE_DIR}/knowhere/knowhere/index/vector_index/gpu/IndexGPUIVFPQ.cpp
         ${INDEX_SOURCE_DIR}/knowhere/knowhere/index/vector_index/gpu/IndexIVFSQHybrid.cpp
         ${INDEX_SOURCE_DIR}/knowhere/knowhere/index/vector_offset_index/gpu/IndexGPUIVF_NM.cpp
-        ${INDEX_SOURCE_DIR}/knowhere/knowhere/index/vector_offset_index/gpu/IndexGPUIVFSQNR_NM.cpp
         )
 endif ()
 

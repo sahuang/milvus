@@ -44,7 +44,7 @@ class IVF_NM : public VecIndex, public OffsetBaseIndex {
     void
     Train(const DatasetPtr&, const Config&) override;
 
-    void
+    std::unique_ptr<std::vector<int64_t>>
     Add(const DatasetPtr&, const Config&) override;
 
     void
@@ -94,7 +94,6 @@ class IVF_NM : public VecIndex, public OffsetBaseIndex {
  protected:
     std::mutex mutex_;
     std::shared_ptr<uint8_t[]> data_ = nullptr;
-    std::vector<size_t> prefix_sum;
 };
 
 using IVFNMPtr = std::shared_ptr<IVF_NM>;

@@ -68,7 +68,6 @@ set(vector_index_srcs
 set(vector_offset_index_srcs
         knowhere/index/vector_offset_index/OffsetBaseIndex.cpp
         knowhere/index/vector_offset_index/IndexIVF_NM.cpp
-        knowhere/index/vector_offset_index/IndexIVFSQNR_NM.cpp
         knowhere/index/vector_offset_index/IndexHNSW_NM.cpp
         knowhere/index/vector_offset_index/IndexNSG_NM.cpp
         knowhere/index/vector_offset_index/IndexHNSW_SQ8NM.cpp
@@ -121,7 +120,6 @@ if (MILVUS_GPU_VERSION)
 
     set(vector_offset_index_srcs ${vector_offset_index_srcs}
             knowhere/index/vector_offset_index/gpu/IndexGPUIVF_NM.cpp
-            knowhere/index/vector_offset_index/gpu/IndexGPUIVFSQNR_NM.cpp
             )
 endif ()
 

@@ -325,13 +325,13 @@ void write_InvertedLists_nm (const InvertedLists *ils, IOWriter *f) {
             WRITEVECTOR (sizes);
         }
         // make a single contiguous data buffer (useful for mmapping)
-        for (size_t i = 0; i < ails->nlist; i++) {
-            size_t n = ails->ids[i].size();
-            if (n > 0) {
-                // WRITEANDCHECK (ails->codes[i].data(), n * ails->code_size);
-                WRITEANDCHECK (ails->ids[i].data(), n);
-            }
-        }
+        //for (size_t i = 0; i < ails->nlist; i++) {
+        //    size_t n = ails->ids[i].size();
+        //    if (n > 0) {
+        //        WRITEANDCHECK (ails->codes[i].data(), n * ails->code_size);
+        //        WRITEANDCHECK (ails->ids[i].data(), n);
+        //    }
+        //}
     } else if (const auto & oa =
             dynamic_cast<const ReadOnlyArrayInvertedLists *>(ils)) {
         // not going to happen
@@ -382,6 +382,7 @@ static void write_ivf_header (const IndexIVF *ivf, IOWriter *f) {
     write_index_header (ivf, f);
     WRITE1 (ivf->nlist);
     WRITE1 (ivf->nprobe);
+    WRITEVECTOR (ivf->prefix_sum);
     write_index (ivf->quantizer, f);
     write_direct_map (&ivf->direct_map, f);
 }
@@ -585,22 +586,10 @@ void write_index_nm (const Index *idx, IOWriter *f) {
         write_InvertedLists_nm (ivfl->invlists, f);
     } else if(const IndexIVFScalarQuantizer * ivsc =
               dynamic_cast<const IndexIVFScalarQuantizer *> (idx)) {
-        uint32_t h = fourcc ("IwSq");
-        WRITE1 (h);
-        write_ivf_header (ivsc, f);
-        write_ScalarQuantizer (&ivsc->sq, f);
-        WRITE1 (ivsc->code_size);
-        WRITE1 (ivsc->by_residual);
-        write_InvertedLists_nm (ivsc->invlists, f);
+        // not going to happen
     } else if(const IndexIVFSQHybrid *ivfsqhbyrid =
             dynamic_cast<const IndexIVFSQHybrid*>(idx)) {
-        uint32_t h = fourcc ("ISqH");
-        WRITE1 (h);
-        write_ivf_header (ivfsqhbyrid, f);
-        write_ScalarQuantizer (&ivfsqhbyrid->sq, f);
-        WRITE1 (ivfsqhbyrid->code_size);
-        WRITE1 (ivfsqhbyrid->by_residual);
-        write_InvertedLists_nm (ivfsqhbyrid->invlists, f);
+        // not going to happen
     } else {
       FAISS_THROW_MSG ("don't know how to serialize this type of index");
     }
@@ -639,6 +628,7 @@ static void write_binary_ivf_header (const IndexBinaryIVF *ivf, IOWriter *f) {
     write_index_binary_header (ivf, f);
     WRITE1 (ivf->nlist);
     WRITE1 (ivf->nprobe);
+    WRITEVECTOR (ivf->prefix_sum);
     write_index_binary (ivf->quantizer, f);
     write_direct_map (&ivf->direct_map, f);
 }

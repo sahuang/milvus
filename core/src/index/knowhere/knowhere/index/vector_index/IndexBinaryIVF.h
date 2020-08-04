@@ -38,9 +38,10 @@ class BinaryIVF : public VecIndex, public FaissBaseBinaryIndex {
     BinarySet
     Serialize(const Config& config = Config()) override;
 
-    void
+    std::unique_ptr<std::vector<int64_t>>
     BuildAll(const DatasetPtr& dataset_ptr, const Config& config) override {
         Train(dataset_ptr, config);
+        return std::make_unique<std::vector<int64_t>>(ids_map);
     }
 
     void
@@ -49,7 +50,7 @@ class BinaryIVF : public VecIndex, public FaissBaseBinaryIndex {
     void
     Train(const DatasetPtr& dataset_ptr, const Config& config) override;
 
-    void
+    std::unique_ptr<std::vector<int64_t>>
     Add(const DatasetPtr& dataset_ptr, const Config& config) override {
         KNOWHERE_THROW_MSG("not support yet");
     }
@@ -90,6 +91,7 @@ class BinaryIVF : public VecIndex, public FaissBaseBinaryIndex {
 
  protected:
     std::mutex mutex_;
+    std::vector<int64_t> ids_map;
 };
 
 using BinaryIVFIndexPtr = std::shared_ptr<BinaryIVF>;

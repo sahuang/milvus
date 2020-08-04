@@ -56,7 +56,6 @@ Please mark all changes in change log and use the issue from GitHub
 -   \#2585 Support IVF_PQ on GPU with using metric_type IP
 -   \#2689 Construct Knowhere Index Without Data
 -   \#2798 hnsw-sq8 support
--   \#2802 Add new index: IVFSQ8NR
 -   \#2834 Add C++ sdk support 4 hnsw_sq8nr
 -   \#2940 Add option to build.sh for cuda arch
 

@@ -40,15 +40,16 @@ class NSG_NM : public VecIndex {
     void
     Load(const BinarySet&) override;
 
-    void
+    std::unique_ptr<std::vector<int64_t>>
     BuildAll(const DatasetPtr& dataset_ptr, const Config& config) override {
         Train(dataset_ptr, config);
+        return nullptr;
     }
 
     void
     Train(const DatasetPtr&, const Config&) override;
 
-    void
+    std::unique_ptr<std::vector<int64_t>>
     Add(const DatasetPtr&, const Config&) override {
         KNOWHERE_THROW_MSG("Incremental index is not supported");
     }

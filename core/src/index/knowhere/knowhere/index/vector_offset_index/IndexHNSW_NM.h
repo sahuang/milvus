@@ -38,7 +38,7 @@ class IndexHNSW_NM : public VecIndex {
     void
     Train(const DatasetPtr& dataset_ptr, const Config& config) override;
 
-    void
+    std::unique_ptr<std::vector<int64_t>>
     Add(const DatasetPtr& dataset_ptr, const Config& config) override;
 
     void

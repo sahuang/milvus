@@ -35,7 +35,7 @@ class IndexAnnoy : public VecIndex {
     void
     Load(const BinarySet& index_binary) override;
 
-    void
+    std::unique_ptr<std::vector<int64_t>>
     BuildAll(const DatasetPtr& dataset_ptr, const Config& config) override;
 
     void
@@ -43,7 +43,7 @@ class IndexAnnoy : public VecIndex {
         KNOWHERE_THROW_MSG("Annoy not support build item dynamically, please invoke BuildAll interface.");
     }
 
-    void
+    std::unique_ptr<std::vector<int64_t>>
     Add(const DatasetPtr& dataset_ptr, const Config& config) override {
         KNOWHERE_THROW_MSG("Annoy not support add item dynamically, please invoke BuildAll interface.");
     }

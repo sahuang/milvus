@@ -61,7 +61,7 @@ IDMAP::Train(const DatasetPtr& dataset_ptr, const Config& config) {
     index_.reset(index);
 }
 
-void
+std::unique_ptr<std::vector<int64_t>>
 IDMAP::Add(const DatasetPtr& dataset_ptr, const Config& config) {
     if (!index_) {
         KNOWHERE_THROW_MSG("index not initialize");
@@ -70,6 +70,8 @@ IDMAP::Add(const DatasetPtr& dataset_ptr, const Config& config) {
     std::lock_guard<std::mutex> lk(mutex_);
     GET_TENSOR_DATA_ID(dataset_ptr)
     index_->add_with_ids(rows, (float*)p_data, p_ids);
+
+    return nullptr;
 }
 
 void

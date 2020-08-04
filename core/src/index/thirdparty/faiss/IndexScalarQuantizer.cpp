@@ -90,7 +90,7 @@ void IndexScalarQuantizer::search(
             }
             scanner->set_query (x + i * d);
             scanner->scan_codes (ntotal, codes.data(),
-                                 nullptr, D, I, k);
+                                 nullptr, (size_t)0, D, I, k);
 
             // re-order heap
             if (metric_type == METRIC_L2) {

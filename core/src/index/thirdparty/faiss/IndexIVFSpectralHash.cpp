@@ -260,13 +260,14 @@ struct IVFScanner: InvertedListScanner {
     size_t scan_codes (size_t list_size,
                        const uint8_t *codes,
                        const idx_t *ids,
+                       size_t offset,
                        float *simi, idx_t *idxi,
                        size_t k,
                        ConcurrentBitsetPtr bitset) const override
     {
         size_t nup = 0;
         for (size_t j = 0; j < list_size; j++) {
-            if (!bitset || !bitset->test(ids[j])) {
+            if (!bitset || !bitset->test(offset + j)) {
                 float dis = hc.hamming (codes);
 
                 if (dis < simi [0]) {

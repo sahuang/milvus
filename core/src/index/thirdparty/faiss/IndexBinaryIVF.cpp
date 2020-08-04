@@ -368,6 +368,7 @@ struct IVFBinaryScannerL2: BinaryInvertedListScanner {
     size_t scan_codes (size_t n,
                        const uint8_t *codes,
                        const idx_t *ids,
+                       size_t offset,
                        int32_t *simi, idx_t *idxi,
                        size_t k,
                        ConcurrentBitsetPtr bitset) const override
@@ -376,7 +377,7 @@ struct IVFBinaryScannerL2: BinaryInvertedListScanner {
 
         size_t nup = 0;
         for (size_t j = 0; j < n; j++) {
-            if (!bitset || !bitset->test(ids[j])) {
+            if (!bitset || !bitset->test(offset + j)) {
                 uint32_t dis = hc.hamming (codes);
                 if (dis < simi[0]) {
                     idx_t id = store_pairs ? (list_no << 32 | j) : ids[j];
@@ -431,6 +432,7 @@ struct IVFBinaryScannerJaccard: BinaryInvertedListScanner {
     size_t scan_codes (size_t n,
                        const uint8_t *codes,
                        const idx_t *ids,
+                       size_t offset,
                        int32_t *simi, idx_t *idxi,
                        size_t k,
                        ConcurrentBitsetPtr bitset = nullptr) const override
@@ -439,7 +441,7 @@ struct IVFBinaryScannerJaccard: BinaryInvertedListScanner {
         float* psimi = (float*)simi;
         size_t nup = 0;
         for (size_t j = 0; j < n; j++) {
-            if(!bitset || !bitset->test(ids[j])){
+            if(!bitset || !bitset->test(offset + j)){
                 float dis = hc.compute (codes);
 
                 if (dis < psimi[0]) {
@@ -572,7 +574,7 @@ void search_knn_hamming_heap(const IndexBinaryIVF& ivf,
                 }
 
                 nheap += scanner->scan_codes (list_size, scodes.get(),
-                                              ids, simi, idxi, k, bitset);
+                                              ids, ivf.prefix_sum[key], simi, idxi, k, bitset);
 
                 nscan += list_size;
                 if (max_codes && nscan >= max_codes)
@@ -661,7 +663,7 @@ void search_knn_binary_dis_heap(const IndexBinaryIVF& ivf,
                 }
 
                 nheap += scanner->scan_codes (list_size, scodes.get(),
-                                              ids, (int32_t*)simi, idxi, k, bitset);
+                                              ids, ivf.prefix_sum[key], (int32_t*)simi, idxi, k, bitset);
 
                 nscan += list_size;
                 if (max_codes && nscan >= max_codes)

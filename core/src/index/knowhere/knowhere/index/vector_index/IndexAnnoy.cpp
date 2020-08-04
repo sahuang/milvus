@@ -78,12 +78,12 @@ IndexAnnoy::Load(const BinarySet& index_binary) {
     }
 }
 
-void
+std::unique_ptr<std::vector<int64_t>>
 IndexAnnoy::BuildAll(const DatasetPtr& dataset_ptr, const Config& config) {
     if (index_) {
         // it is builded all
         LOG_KNOWHERE_DEBUG_ << "IndexAnnoy::BuildAll: index_ has been built!";
-        return;
+        return nullptr;
     }
 
     GET_TENSOR(dataset_ptr)
@@ -102,6 +102,8 @@ IndexAnnoy::BuildAll(const DatasetPtr& dataset_ptr, const Config& config) {
     }
 
     index_->build(config[IndexParams::n_trees].get<int64_t>());
+
+    return nullptr;
 }
 
 DatasetPtr

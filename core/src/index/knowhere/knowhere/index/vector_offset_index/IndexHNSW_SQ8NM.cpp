@@ -92,7 +92,7 @@ IndexHNSW_SQ8NM::Train(const DatasetPtr& dataset_ptr, const Config& config) {
     }
 }
 
-void
+std::unique_ptr<std::vector<int64_t>>
 IndexHNSW_SQ8NM::Add(const DatasetPtr& dataset_ptr, const Config& config) {
     // It will not call Query() just after Add()
     // So, not to set 'data_' is allowed.
@@ -113,6 +113,8 @@ IndexHNSW_SQ8NM::Add(const DatasetPtr& dataset_ptr, const Config& config) {
         faiss::BuilderSuspend::check_wait();
         index_->addPoint(pp_data, p_ids[i], base, i);
     }
+
+    return nullptr;
 }
 
 DatasetPtr

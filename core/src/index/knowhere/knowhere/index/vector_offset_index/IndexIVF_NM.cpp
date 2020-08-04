@@ -61,43 +61,9 @@ IVF_NM::Load(const BinarySet& binary_set) {
     std::lock_guard<std::mutex> lk(mutex_);
     LoadImpl(binary_set, index_type_);
 
-    // Construct arranged data from original data
+    // Get arranged data and store
     auto binary = binary_set.GetByName(RAW_DATA);
-    const float* original_data = (const float*)binary->data.get();
-    auto ivf_index = dynamic_cast<faiss::IndexIVF*>(index_.get());
-    auto invlists = ivf_index->invlists;
-    auto d = ivf_index->d;
-    auto nb = (size_t)(binary->size / invlists->code_size);
-    auto arranged_data = new uint8_t[d * sizeof(float) * nb];
-    prefix_sum.resize(invlists->nlist);
-    size_t curr_index = 0;
-
-#ifndef MILVUS_GPU_VERSION
-    auto ails = dynamic_cast<faiss::ArrayInvertedLists*>(invlists);
-    for (size_t i = 0; i < invlists->nlist; i++) {
-        auto list_size = ails->ids[i].size();
-        for (size_t j = 0; j < list_size; j++) {
-            memcpy(arranged_data + d * sizeof(float) * (curr_index + j), original_data + d * ails->ids[i][j],
-                   d * sizeof(float));
-        }
-        prefix_sum[i] = curr_index;
-        curr_index += list_size;
-    }
-#else
-    auto rol = dynamic_cast<faiss::ReadOnlyArrayInvertedLists*>(invlists);
-    auto lengths = rol->readonly_length;
-    auto rol_ids = (const int64_t*)rol->pin_readonly_ids->data;
-    for (size_t i = 0; i < invlists->nlist; i++) {
-        auto list_size = lengths[i];
-        for (size_t j = 0; j < list_size; j++) {
-            memcpy(arranged_data + d * sizeof(float) * (curr_index + j), original_data + d * rol_ids[curr_index + j],
-                   d * sizeof(float));
-        }
-        prefix_sum[i] = curr_index;
-        curr_index += list_size;
-    }
-#endif
-    data_ = std::shared_ptr<uint8_t[]>(arranged_data);
+    data_ = std::shared_ptr<uint8_t[]>(binary->data.get());
 }
 
 void
@@ -111,7 +77,7 @@ IVF_NM::Train(const DatasetPtr& dataset_ptr, const Config& config) {
     index_->train(rows, (float*)p_data);
 }
 
-void
+std::unique_ptr<std::vector<int64_t>>
 IVF_NM::Add(const DatasetPtr& dataset_ptr, const Config& config) {
     if (!index_ || !index_->is_trained) {
         KNOWHERE_THROW_MSG("index not initialize or trained");
@@ -120,6 +86,39 @@ IVF_NM::Add(const DatasetPtr& dataset_ptr, const Config& config) {
     std::lock_guard<std::mutex> lk(mutex_);
     GET_TENSOR_DATA_ID(dataset_ptr)
     index_->add_with_ids_without_codes(rows, (float*)p_data, p_ids);
+
+    // get "map" of invlist ids to subsequent ids
+    // also generate prefix_sum array
+    std::vector<int64_t> ids_map(rows);
+    auto ivf_index = dynamic_cast<faiss::IndexIVF*>(index_.get());
+    auto invlists = ivf_index->invlists;
+    auto nlist = invlists->nlist;
+    ivf_index->prefix_sum.resize(nlist);
+    size_t curr_index = 0;
+#ifndef MILVUS_GPU_VERSION
+    auto ails = dynamic_cast<faiss::ArrayInvertedLists*>(invlists);
+    for (size_t i = 0; i < nlist; i++) {
+        auto list_size = ails->ids[i].size();
+        for (size_t j = 0; j < list_size; j++) {
+            ids_map[ails->ids[i][j]] = curr_index + j;
+        }
+        ivf_index->prefix_sum[i] = curr_index;
+        curr_index += list_size;
+    }
+#else
+    auto rol = dynamic_cast<faiss::ReadOnlyArrayInvertedLists*>(invlists);
+    auto lengths = rol->readonly_length;
+    auto rol_ids = (const int64_t*)rol->pin_readonly_ids->data;
+    for (size_t i = 0; i < nlist; i++) {
+        auto list_size = lengths[i];
+        for (size_t j = 0; j < list_size; j++) {
+            ids_map[rol_ids[curr_index + j]] = curr_index + j;
+        }
+        ivf_index->prefix_sum[i] = curr_index;
+        curr_index += list_size;
+    }
+#endif
+    return std::make_unique<std::vector<int64_t>>(ids_map);
 }
 
 void
@@ -311,9 +310,8 @@ IVF_NM::QueryImpl(int64_t n, const float* data, int64_t k, float* distances, int
     } else {
         ivf_index->parallel_mode = 0;
     }
-    bool is_sq8 =
-        (index_type_ == IndexEnum::INDEX_FAISS_IVFSQ8 || index_type_ == IndexEnum::INDEX_FAISS_IVFSQ8NR) ? true : false;
-    ivf_index->search_without_codes(n, (float*)data, (const uint8_t*)data_.get(), prefix_sum, is_sq8, k, distances,
+    bool is_sq8 = (index_type_ == IndexEnum::INDEX_FAISS_IVFSQ8) ? true : false;
+    ivf_index->search_without_codes(n, (float*)data, (const uint8_t*)data_.get(), is_sq8, k, distances,
                                     labels, bitset_);
     stdclock::time_point after = stdclock::now();
     double search_cost = (std::chrono::duration<double, std::micro>(after - before)).count();
