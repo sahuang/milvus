@@ -13,6 +13,7 @@
 
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "hnswlib/hnswalg_nm.h"
 #include "hnswlib/hnswlib_nm.h"

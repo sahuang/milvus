@@ -813,7 +813,9 @@ GrpcRequestHandler::CreateIndex(::grpc::ServerContext* context, const ::milvus::
     for (int i = 0; i < request->extra_params_size(); i++) {
         const ::milvus::grpc::KeyValuePair& extra = request->extra_params(i);
         if (extra.key() == EXTRA_PARAM_KEY) {
-            json_params = json::parse(extra.value());
+            json_params[EXTRA_PARAM_KEY] = json::parse(extra.value());
+        } else {
+            json_params[extra.key()] = extra.value();
         }
     }
 
@@ -1267,13 +1269,12 @@ GrpcRequestHandler::Flush(::grpc::ServerContext* context, const ::milvus::grpc::
 }
 
 ::grpc::Status
-GrpcRequestHandler::Compact(::grpc::ServerContext* context, const ::milvus::grpc::CollectionName* request,
+GrpcRequestHandler::Compact(::grpc::ServerContext* context, ::milvus::grpc::CompactParam* request,
                             ::milvus::grpc::Status* response) {
     CHECK_NULLPTR_RETURN(request);
     LOG_SERVER_INFO_ << LogOut("Request [%s] %s begin.", GetContext(context)->ReqID().c_str(), __func__);
 
-    double compact_threshold = 0.1;  // compact trigger threshold: delete_counts/segment_counts
-    Status status = req_handler_.Compact(GetContext(context), request->collection_name(), compact_threshold);
+    Status status = req_handler_.Compact(GetContext(context), request->collection_name(), request->threshold());
 
     LOG_SERVER_INFO_ << LogOut("Request [%s] %s end.", GetContext(context)->ReqID().c_str(), __func__);
     SET_RESPONSE(response, status, context);
@@ -1597,6 +1598,9 @@ Status
 GrpcRequestHandler::ProcessBooleanQueryJson(const nlohmann::json& query_json, query::BooleanQueryPtr& boolean_query,
                                             query::QueryPtr& query_ptr) {
     auto status = Status::OK();
+    if (query_json.empty()) {
+        return Status{SERVER_INVALID_ARGUMENT, "BoolQuery is null"};
+    }
     for (auto& el : query_json.items()) {
         if (el.key() == "must") {
             boolean_query->SetOccur(query::Occur::MUST);
@@ -1662,7 +1666,7 @@ GrpcRequestHandler::ProcessBooleanQueryJson(const nlohmann::json& query_json, qu
                 }
             }
         } else {
-            std::string msg = "Must json string doesnot include right query";
+            std::string msg = "BoolQuery json string does not include bool query";
             return Status{SERVER_INVALID_DSL_PARAMETER, msg};
         }
     }
@@ -1677,6 +1681,9 @@ GrpcRequestHandler::DeserializeJsonToBoolQuery(
     try {
         nlohmann::json dsl_json = json::parse(dsl_string);
 
+        if (dsl_json.empty()) {
+            return Status{SERVER_INVALID_ARGUMENT, "Query dsl is null"};
+        }
         auto status = Status::OK();
         for (const auto& vector_param : vector_params) {
             const std::string& vector_string = vector_param.json();
@@ -1687,14 +1694,18 @@ GrpcRequestHandler::DeserializeJsonToBoolQuery(
             auto vector_query = std::make_shared<query::VectorQuery>();
             json::iterator vector_param_it = it.value().begin();
             if (vector_param_it != it.value().end()) {
-                std::string field_name = vector_param_it.key();
+                const std::string& field_name = vector_param_it.key();
                 vector_query->field_name = field_name;
-                int64_t topk = vector_param_it.value()["topk"];
+                nlohmann::json vector_json = vector_param_it.value();
+                int64_t topk = vector_json["topk"];
                 status = server::ValidateSearchTopk(topk);
                 if (!status.ok()) {
                     return status;
                 }
                 vector_query->topk = topk;
+                if (vector_json.contains("metric_type")) {
+                    query_ptr->metric_types.insert({field_name, vector_json["metric_type"]});
+                }
                 if (!vector_param_it.value()["params"].empty()) {
                     vector_query->extra_params = vector_param_it.value()["params"];
                 }

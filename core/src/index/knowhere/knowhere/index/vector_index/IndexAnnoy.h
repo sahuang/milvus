@@ -13,6 +13,7 @@
 
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "annoy/src/annoylib.h"
 #include "annoy/src/kissrandom.h"
