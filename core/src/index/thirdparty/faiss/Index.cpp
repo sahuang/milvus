@@ -61,6 +61,12 @@ void Index::add_with_ids_without_codes(idx_t n, const float* x, const idx_t* xid
   FAISS_THROW_MSG ("add_with_ids_without_codes not implemented for this type of index");
 }
 
+void Index::search_with_offset (idx_t n, const float *x, std::vector<int64_t>& offset,
+                                idx_t k, float *distances, idx_t *labels,
+                                ConcurrentBitsetPtr bitset) {
+  FAISS_THROW_MSG ("search_with_offset not implemented for this type of index");                        
+}
+
 #if 0
 void Index::get_vector_by_id (idx_t n, const idx_t *xid, float *x, ConcurrentBitsetPtr bitset) {
   FAISS_THROW_MSG ("get_vector_by_id not implemented for this type of index");

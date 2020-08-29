@@ -183,6 +183,14 @@ void knn_L2sqr (
         float_maxheap_array_t * res,
         ConcurrentBitsetPtr bitset = nullptr);
 
+void knn_L2sqr_with_offset (
+        const float * x,
+        const float * y,
+        std::vector<int64_t>& offset,
+        size_t d, size_t nx,
+        float_maxheap_array_t * res,
+        ConcurrentBitsetPtr bitset = nullptr);
+
 void knn_jaccard (
         const float * x,
         const float * y,

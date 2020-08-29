@@ -37,6 +37,15 @@ struct IndexFlat: Index {
         idx_t* labels,
         ConcurrentBitsetPtr bitset = nullptr) const override;
 
+    void search_with_offset(
+        idx_t n,
+        const float* x,
+        std::vector<int64_t>& offset,
+        idx_t k,
+        float* distances,
+        idx_t* labels,
+        ConcurrentBitsetPtr bitset = nullptr) override;
+
     void assign (
         idx_t n,
         const float * x,

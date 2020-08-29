@@ -116,6 +116,28 @@ IDMAP::Query(const DatasetPtr& dataset_ptr, const Config& config) {
     return ret_ds;
 }
 
+DatasetPtr
+IDMAP::QueryWithOffset(const DatasetPtr& dataset_ptr, const Config& config, std::vector<int64_t>& offset) {
+    if (!index_) {
+        KNOWHERE_THROW_MSG("index not initialize");
+    }
+    GET_TENSOR_DATA(dataset_ptr)
+
+    auto k = config[meta::TOPK].get<int64_t>();
+    auto elems = rows * k;
+    size_t p_id_size = sizeof(int64_t) * elems;
+    size_t p_dist_size = sizeof(float) * elems;
+    auto p_id = static_cast<int64_t*>(malloc(p_id_size));
+    auto p_dist = static_cast<float*>(malloc(p_dist_size));
+
+    QueryWithOffsetImpl(rows, reinterpret_cast<const float*>(p_data), offset, k, p_dist, p_id, config);
+
+    auto ret_ds = std::make_shared<Dataset>();
+    ret_ds->Set(meta::IDS, p_id);
+    ret_ds->Set(meta::DISTANCE, p_dist);
+    return ret_ds;
+}
+
 #if 0
 DatasetPtr
 IDMAP::QueryById(const DatasetPtr& dataset_ptr, const Config& config) {
@@ -228,6 +250,15 @@ IDMAP::QueryImpl(int64_t n, const float* data, int64_t k, float* distances, int6
     auto flat_index = dynamic_cast<faiss::IndexIDMap*>(index_.get())->index;
     flat_index->metric_type = GetMetricType(config[Metric::TYPE].get<std::string>());
     index_->search(n, data, k, distances, labels, bitset_);
+}
+
+void
+IDMAP::QueryWithOffsetImpl(int64_t n, const float* data, std::vector<int64_t>& offset, 
+                           int64_t k, float* distances, int64_t* labels, const Config& config) {
+    // assign the metric type
+    auto flat_index = dynamic_cast<faiss::IndexIDMap*>(index_.get())->index;
+    flat_index->metric_type = GetMetricType(config[Metric::TYPE].get<std::string>());
+    index_->search_with_offset(n, data, offset, k, distances, labels, bitset_);
 }
 
 }  // namespace knowhere

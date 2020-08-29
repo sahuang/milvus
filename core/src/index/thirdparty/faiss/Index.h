@@ -130,6 +130,10 @@ struct Index {
                          float *distances, idx_t *labels,
                          ConcurrentBitsetPtr bitset = nullptr) const = 0;
 
+    virtual void search_with_offset (idx_t n, const float *x, std::vector<int64_t>& offset,
+                                    idx_t k, float *distances, idx_t *labels,
+                                    ConcurrentBitsetPtr bitset);
+
 #if 0
     /** query n raw vectors from the index by ids.
      *
