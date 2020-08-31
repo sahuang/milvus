@@ -423,9 +423,9 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
 }
 
 Status
-ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query, 
-                                   std::unordered_map<std::string, DataType>& attr_type, 
-                                   std::string& vector_placeholder, float *score) {
+ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query,
+                                   std::unordered_map<std::string, DataType>& attr_type,
+                                   std::string& vector_placeholder, float* score) {
     Status status = Status::OK();
     if (general_query->leaf == nullptr) {
         faiss::ConcurrentBitsetPtr left_bitset, right_bitset;
@@ -492,11 +492,10 @@ ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query,
 
 Status
 ExecutionEngineImpl::StrategyOne() {
-
 }
 
 Status
-ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset, 
+ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset,
                                  std::unordered_map<std::string, engine::DataType>& attr_type,
                                  std::string& vector_placeholder, faiss::ConcurrentBitsetPtr& list,
                                  knowhere::VecIndexPtr& vec_index) {
@@ -522,7 +521,6 @@ ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::Concurr
 
 Status
 ExecutionEngineImpl::StrategyThree() {
-    
 }
 
 Status

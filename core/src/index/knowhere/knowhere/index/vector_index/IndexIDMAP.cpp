@@ -253,8 +253,8 @@ IDMAP::QueryImpl(int64_t n, const float* data, int64_t k, float* distances, int6
 }
 
 void
-IDMAP::QueryWithOffsetImpl(int64_t n, const float* data, std::vector<int64_t>& offset, 
-                           int64_t k, float* distances, int64_t* labels, const Config& config) {
+IDMAP::QueryWithOffsetImpl(int64_t n, const float* data, std::vector<int64_t>& offset, int64_t k, float* distances,
+                           int64_t* labels, const Config& config) {
     // assign the metric type
     auto flat_index = dynamic_cast<faiss::IndexIDMap*>(index_.get())->index;
     flat_index->metric_type = GetMetricType(config[Metric::TYPE].get<std::string>());

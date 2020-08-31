@@ -66,8 +66,8 @@ class ExecutionEngineImpl : public ExecutionEngine {
                     std::unordered_map<std::string, DataType>& attr_type, std::string& vector_placeholder);
 
     Status
-    EstimateScore(const query::GeneralQueryPtr& general_query, std::unordered_map<std::string, DataType>& attr_type, 
-                  std::string& vector_placeholder, float *score);
+    EstimateScore(const query::GeneralQueryPtr& general_query, std::unordered_map<std::string, DataType>& attr_type,
+                  std::string& vector_placeholder, float* score);
 
     Status
     ProcessTermQuery(faiss::ConcurrentBitsetPtr& bitset, const query::TermQueryPtr& term_query,
@@ -98,8 +98,8 @@ class ExecutionEngineImpl : public ExecutionEngine {
     StrategyOne();
 
     Status
-    StrategyTwo(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset, 
-                std::unordered_map<std::string, engine::DataType>& attr_type, std::string& vector_placeholder, 
+    StrategyTwo(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset,
+                std::unordered_map<std::string, engine::DataType>& attr_type, std::string& vector_placeholder,
                 faiss::ConcurrentBitsetPtr& list, knowhere::VecIndexPtr& vec_index);
 
     Status
