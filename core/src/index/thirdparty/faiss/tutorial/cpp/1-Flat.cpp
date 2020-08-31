@@ -12,9 +12,9 @@
 
 
 int main() {
-    int d = 64;                            // dimension
-    int nb = 100000;                       // database size
-    int nq = 10000;                        // nb of queries
+    int d = 128;                            // dimension
+    int nb = 1000;                       // database size
+    int nq = 100;                        // nb of queries
 
     float *xb = new float[d * nb];
     float *xq = new float[d * nq];
@@ -38,32 +38,6 @@ int main() {
 
     int k = 4;
 
-    {       // sanity check: search 5 first vectors of xb
-        long *I = new long[k * 5];
-        float *D = new float[k * 5];
-
-        index.search(5, xb, k, D, I);
-
-        // print results
-        printf("I=\n");
-        for(int i = 0; i < 5; i++) {
-            for(int j = 0; j < k; j++)
-                printf("%5ld ", I[i * k + j]);
-            printf("\n");
-        }
-
-        printf("D=\n");
-        for(int i = 0; i < 5; i++) {
-            for(int j = 0; j < k; j++)
-                printf("%7g ", D[i * k + j]);
-            printf("\n");
-        }
-
-        delete [] I;
-        delete [] D;
-    }
-
-
     {       // search xq
         long *I = new long[k * nq];
         float *D = new float[k * nq];
@@ -78,8 +52,14 @@ int main() {
             printf("\n");
         }
 
-        printf("I (5 last results)=\n");
-        for(int i = nq - 5; i < nq; i++) {
+        // search with offset
+        std::vector<int64_t> offset;
+        for (int i = 0; i < 500; i++) offset.push_back(i * 2);
+        index.search_with_offset(nq, xq, offset, k, D, I);
+
+        // print results
+        printf("I (5 first results)=\n");
+        for(int i = 0; i < 5; i++) {
             for(int j = 0; j < k; j++)
                 printf("%5ld ", I[i * k + j]);
             printf("\n");

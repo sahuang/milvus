@@ -363,6 +363,169 @@ ExecutionEngineImpl::Search(ExecutionEngineContext& context) {
 }
 
 Status
+ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
+    try {
+        faiss::ConcurrentBitsetPtr bitset;
+        std::string vector_placeholder;
+        faiss::ConcurrentBitsetPtr list;
+
+        SegmentPtr segment_ptr;
+        segment_reader_->GetSegment(segment_ptr);
+        knowhere::VecIndexPtr vec_index = nullptr;
+        std::unordered_map<std::string, engine::DataType> attr_type;
+
+        auto segment_visitor = segment_reader_->GetSegmentVisitor();
+        auto field_visitors = segment_visitor->GetFieldVisitors();
+        for (const auto& name : context.query_ptr_->index_fields) {
+            auto field_visitor = segment_visitor->GetFieldVisitor(name);
+            if (!field_visitor) {
+                return Status(SERVER_INVALID_DSL_PARAMETER, "Field: " + name + " is not existed");
+            }
+            auto field = field_visitor->GetField();
+            if (field->GetFtype() == static_cast<snapshot::FTYPE_TYPE>(engine::DataType::VECTOR_FLOAT) ||
+                field->GetFtype() == static_cast<snapshot::FTYPE_TYPE>(engine::DataType::VECTOR_BINARY)) {
+                STATUS_CHECK(segment_ptr->GetVectorIndex(name, vec_index));
+            } else {
+                attr_type.insert(std::make_pair(name, static_cast<engine::DataType>(field->GetFtype())));
+            }
+        }
+
+        list = vec_index->GetBlacklist();
+        entity_count_ = list->capacity();
+
+        // Estimate score for optimizer to decide which strategy to use
+        // Score is the percentage that is estimated to be filtered out by scalar fields
+        float score = 0.0f;
+        auto status = EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, &score);
+        if (!status.ok()) {
+            return status;
+        }
+
+        // auto strategy = 0; the strategy specified by DSL
+        if (score <= 0.2) {
+            // strategy 3
+            status = StrategyThree();
+        } else if (entity_count_ * (1 - score) <= 4096) {
+            // strategy 1
+            status = StrategyOne();
+        } else {
+            // strategy 2
+            status = StrategyTwo(context, bitset, attr_type, vector_placeholder, list, vec_index);
+        }
+        if (!status.ok()) {
+            return status;
+        }
+    } catch (std::exception& exception) {
+        return Status{DB_ERROR, "Illegal search params"};
+    }
+
+    return Status::OK();
+}
+
+Status
+ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query, 
+                                   std::unordered_map<std::string, DataType>& attr_type, 
+                                   std::string& vector_placeholder, float *score) {
+    Status status = Status::OK();
+    if (general_query->leaf == nullptr) {
+        faiss::ConcurrentBitsetPtr left_bitset, right_bitset;
+        if (general_query->bin->left_query != nullptr) {
+            status = ExecBinaryQuery(general_query->bin->left_query, left_bitset, attr_type, vector_placeholder);
+            if (!status.ok()) {
+                return status;
+            }
+        }
+        if (general_query->bin->right_query != nullptr) {
+            status = ExecBinaryQuery(general_query->bin->right_query, right_bitset, attr_type, vector_placeholder);
+            if (!status.ok()) {
+                return status;
+            }
+        }
+
+        if (left_bitset == nullptr || right_bitset == nullptr) {
+            // bitset = left_bitset != nullptr ? left_bitset : right_bitset;
+        } else {
+            switch (general_query->bin->relation) {
+                case milvus::query::QueryRelation::AND:
+                case milvus::query::QueryRelation::R1: {
+                    // bitset = (*left_bitset) & right_bitset;
+                    break;
+                }
+                case milvus::query::QueryRelation::OR:
+                case milvus::query::QueryRelation::R2:
+                case milvus::query::QueryRelation::R3: {
+                    // bitset = (*left_bitset) | right_bitset;
+                    break;
+                }
+                case milvus::query::QueryRelation::R4: {
+                    for (uint64_t i = 0; i < entity_count_; ++i) {
+                        if (left_bitset->test(i) && !right_bitset->test(i)) {
+                            // bitset->set(i);
+                        }
+                    }
+                    break;
+                }
+                default: {
+                    std::string msg = "Invalid QueryRelation in BinaryQuery";
+                    return Status{SERVER_INVALID_ARGUMENT, msg};
+                }
+            }
+        }
+        return status;
+    } else {
+        if (general_query->leaf->term_query != nullptr) {
+            // bitset = std::make_shared<faiss::ConcurrentBitset>(entity_count_);
+            // STATUS_CHECK(ProcessTermQuery(bitset, general_query->leaf->term_query, attr_type));
+        }
+        if (general_query->leaf->range_query != nullptr) {
+            // bitset = std::make_shared<faiss::ConcurrentBitset>(entity_count_);
+            // STATUS_CHECK(ProcessRangeQuery(attr_type, bitset, general_query->leaf->range_query));
+        }
+        if (!general_query->leaf->vector_placeholder.empty()) {
+            // skip vector query
+            // bitset = std::make_shared<faiss::ConcurrentBitset>(entity_count_, 255);
+            vector_placeholder = general_query->leaf->vector_placeholder;
+        }
+    }
+    return status;
+}
+
+Status
+ExecutionEngineImpl::StrategyOne() {
+
+}
+
+Status
+ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset, 
+                                 std::unordered_map<std::string, engine::DataType>& attr_type,
+                                 std::string& vector_placeholder, faiss::ConcurrentBitsetPtr& list,
+                                 knowhere::VecIndexPtr& vec_index) {
+    auto status = ExecBinaryQuery(context.query_ptr_->root, bitset, attr_type, vector_placeholder);
+    // Do And
+    for (int64_t i = 0; i < entity_count_; i++) {
+        if (!list->test(i) && !bitset->test(i)) {
+            list->set(i);
+        }
+    }
+    vec_index->SetBlacklist(list);
+
+    auto& vector_param = context.query_ptr_->vectors.at(vector_placeholder);
+    if (!vector_param->query_vector.float_data.empty()) {
+        vector_param->nq = vector_param->query_vector.float_data.size() / vec_index->Dim();
+    } else if (!vector_param->query_vector.binary_data.empty()) {
+        vector_param->nq = vector_param->query_vector.binary_data.size() * 8 / vec_index->Dim();
+    }
+
+    status = VecSearch(context, context.query_ptr_->vectors.at(vector_placeholder), vec_index);
+    return status;
+}
+
+Status
+ExecutionEngineImpl::StrategyThree() {
+    
+}
+
+Status
 ExecutionEngineImpl::ExecBinaryQuery(const milvus::query::GeneralQueryPtr& general_query,
                                      faiss::ConcurrentBitsetPtr& bitset,
                                      std::unordered_map<std::string, DataType>& attr_type,

@@ -38,6 +38,9 @@ class ExecutionEngineImpl : public ExecutionEngine {
     Search(ExecutionEngineContext& context) override;
 
     Status
+    SearchWithOptimizer(ExecutionEngineContext& context);
+
+    Status
     BuildIndex() override;
 
  private:
@@ -63,6 +66,10 @@ class ExecutionEngineImpl : public ExecutionEngine {
                     std::unordered_map<std::string, DataType>& attr_type, std::string& vector_placeholder);
 
     Status
+    EstimateScore(const query::GeneralQueryPtr& general_query, std::unordered_map<std::string, DataType>& attr_type, 
+                  std::string& vector_placeholder, float *score);
+
+    Status
     ProcessTermQuery(faiss::ConcurrentBitsetPtr& bitset, const query::TermQueryPtr& term_query,
                      std::unordered_map<std::string, DataType>& attr_type);
 
@@ -86,6 +93,17 @@ class ExecutionEngineImpl : public ExecutionEngine {
     Status
     BuildKnowhereIndex(const std::string& field_name, const CollectionIndex& index_info,
                        knowhere::VecIndexPtr& new_index);
+
+    Status
+    StrategyOne();
+
+    Status
+    StrategyTwo(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset, 
+                std::unordered_map<std::string, engine::DataType>& attr_type, std::string& vector_placeholder, 
+                faiss::ConcurrentBitsetPtr& list, knowhere::VecIndexPtr& vec_index);
+
+    Status
+    StrategyThree();
 
  private:
     segment::SegmentReaderPtr segment_reader_;
