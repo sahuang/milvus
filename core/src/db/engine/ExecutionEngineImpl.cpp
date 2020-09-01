@@ -486,21 +486,42 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
         // Estimate score for optimizer to decide which strategy to use
         // Score is the percentage that is estimated to be filtered out by scalar fields
         float score = 0.0f;
-        auto status = EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, &score);
-        if (!status.ok()) {
-            return status;
-        }
+        auto status = Status::OK();
+        // auto status = EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, &score);
+        // if (!status.ok()) {
+        //     return status;
+        // }
 
-        // auto strategy = 0; the strategy specified by DSL
-        if (score <= 0.2) {
-            // strategy 3
-            status = StrategyThree();
-        } else if (entity_count_ * (1 - score) <= 4096) {
-            // strategy 1
-            status = StrategyOne(context, bitset, attr_type, vector_placeholder, list, vec_index_flat);
-        } else {
-            // strategy 2
-            status = StrategyTwo(context, bitset, attr_type, vector_placeholder, list, vec_index);
+        auto strategy = context.query_ptr_->strategy; // the strategy specified by DSL
+        switch (strategy) {
+            case 0: {
+                if (score <= 0.2) {
+                    // strategy 3
+                    status = StrategyThree();
+                } else if (entity_count_ * (1 - score) <= 4096) {
+                    // strategy 1
+                    status = StrategyOne(context, bitset, attr_type, vector_placeholder, list, vec_index_flat);
+                } else {
+                    // strategy 2
+                    status = StrategyTwo(context, bitset, attr_type, vector_placeholder, list, vec_index);
+                }
+                break;
+            }
+            case 1: {
+                status = StrategyOne(context, bitset, attr_type, vector_placeholder, list, vec_index_flat);
+                break;
+            }
+            case 2: {
+                status = StrategyTwo(context, bitset, attr_type, vector_placeholder, list, vec_index);
+                break;
+            }
+            case 3: {
+                status = StrategyThree();
+                break;
+            }
+            default: {
+                break;
+            }
         }
         if (!status.ok()) {
             return status;
