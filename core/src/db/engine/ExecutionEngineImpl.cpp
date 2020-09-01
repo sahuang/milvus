@@ -456,6 +456,7 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
         faiss::ConcurrentBitsetPtr bitset;
         std::string vector_placeholder;
         faiss::ConcurrentBitsetPtr list;
+        faiss::ConcurrentBitsetPtr list_flat;
 
         SegmentPtr segment_ptr;
         segment_reader_->GetSegment(segment_ptr);
@@ -481,6 +482,7 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
         }
 
         list = vec_index->GetBlacklist();
+        list_flat = vec_index_flat->GetBlacklist();
         entity_count_ = list->capacity();
 
         // Estimate score for optimizer to decide which strategy to use
@@ -500,7 +502,7 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
                     status = StrategyThree();
                 } else if (entity_count_ * (1 - score) <= 4096) {
                     // strategy 1
-                    status = StrategyOne(context, bitset, attr_type, vector_placeholder, list, vec_index_flat);
+                    status = StrategyOne(context, bitset, attr_type, vector_placeholder, list_flat, vec_index_flat);
                 } else {
                     // strategy 2
                     status = StrategyTwo(context, bitset, attr_type, vector_placeholder, list, vec_index);
@@ -508,7 +510,7 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
                 break;
             }
             case 1: {
-                status = StrategyOne(context, bitset, attr_type, vector_placeholder, list, vec_index_flat);
+                status = StrategyOne(context, bitset, attr_type, vector_placeholder, list_flat, vec_index_flat);
                 break;
             }
             case 2: {
