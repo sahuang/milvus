@@ -50,7 +50,7 @@ class IDMAP : public VecIndex, public FaissBaseIndex {
     Query(const DatasetPtr&, const Config&) override;
 
     DatasetPtr
-    QueryWithOffset(const DatasetPtr&, const Config&, std::vector<int64_t>&);
+    QueryWithOffset(const DatasetPtr&, const Config&, std::vector<int64_t>&) override;
 
 #if 0
     DatasetPtr

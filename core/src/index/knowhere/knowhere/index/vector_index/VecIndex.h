@@ -48,6 +48,11 @@ class VecIndex : public Index {
     virtual DatasetPtr
     Query(const DatasetPtr& dataset, const Config& config) = 0;
 
+    virtual DatasetPtr
+    QueryWithOffset(const DatasetPtr&, const Config&, std::vector<int64_t>&) {
+        return nullptr;
+    }
+
 #if 0
     virtual DatasetPtr
     QueryById(const DatasetPtr& dataset, const Config& config) {

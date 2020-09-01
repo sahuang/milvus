@@ -48,6 +48,14 @@ class ExecutionEngineImpl : public ExecutionEngine {
     VecSearch(ExecutionEngineContext& context, const query::VectorQueryPtr& vector_param,
               knowhere::VecIndexPtr& vec_index, bool hybrid = false);
 
+    Status
+    VecSearchWithOptimizer(ExecutionEngineContext& context, const query::VectorQueryPtr& vector_param,
+                           knowhere::VecIndexPtr& vec_index, bool expand = false);
+
+    Status
+    VecSearchWithFlat(ExecutionEngineContext& context, const query::VectorQueryPtr& vector_param,
+                      knowhere::VecIndexPtr& vec_index, std::vector<int64_t>& offset);
+
     knowhere::VecIndexPtr
     CreateVecIndex(const std::string& index_name);
 
@@ -95,7 +103,9 @@ class ExecutionEngineImpl : public ExecutionEngine {
                        knowhere::VecIndexPtr& new_index);
 
     Status
-    StrategyOne();
+    StrategyOne(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset,
+                std::unordered_map<std::string, engine::DataType>& attr_type, std::string& vector_placeholder,
+                faiss::ConcurrentBitsetPtr& list, knowhere::VecIndexPtr& vec_index_flat);
 
     Status
     StrategyTwo(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset,

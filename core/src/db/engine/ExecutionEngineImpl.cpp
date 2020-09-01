@@ -301,6 +301,94 @@ ExecutionEngineImpl::VecSearch(milvus::engine::ExecutionEngineContext& context,
 }
 
 Status
+ExecutionEngineImpl::VecSearchWithOptimizer(milvus::engine::ExecutionEngineContext& context,
+                                            const query::VectorQueryPtr& vector_param, knowhere::VecIndexPtr& vec_index,
+                                            bool expand) {
+    TimeRecorder rc(LogOut("[%s][%ld] ExecutionEngineImpl::Search", "search", 0));
+
+    if (vec_index == nullptr) {
+        LOG_ENGINE_ERROR_ << LogOut("[%s][%ld] ExecutionEngineImpl: index is null, failed to search", "search", 0);
+        return Status(DB_ERROR, "index is null");
+    }
+
+    uint64_t nq = vector_param->nq;
+    auto query_vector = vector_param->query_vector;
+    uint64_t topk = vector_param->topk;
+    // maybe need to expand topk
+    if (expand)
+        topk *= 2;
+
+    context.query_result_ = std::make_shared<QueryResult>();
+    context.query_result_->result_ids_.resize(topk * nq);
+    context.query_result_->result_distances_.resize(topk * nq);
+
+    milvus::json conf = vector_param->extra_params;
+    conf[knowhere::meta::TOPK] = topk;
+    conf[knowhere::Metric::TYPE] = vector_param->metric_type;
+    auto adapter = knowhere::AdapterMgr::GetInstance().GetAdapter(vec_index->index_type());
+    if (!adapter->CheckSearch(conf, vec_index->index_type(), vec_index->index_mode())) {
+        LOG_ENGINE_ERROR_ << LogOut("[%s][%ld] Illegal search params", "search", 0);
+        throw Exception(DB_ERROR, "Illegal search params");
+    }
+
+    rc.RecordSection("query prepare");
+    knowhere::DatasetPtr dataset;
+    if (!query_vector.float_data.empty()) {
+        dataset = knowhere::GenDataset(nq, vec_index->Dim(), query_vector.float_data.data());
+    } else {
+        dataset = knowhere::GenDataset(nq, vec_index->Dim(), query_vector.binary_data.data());
+    }
+    auto result = vec_index->Query(dataset, conf);
+
+    MapAndCopyResult(result, vec_index->GetUids(), nq, topk, context.query_result_->result_distances_.data(),
+                     context.query_result_->result_ids_.data());
+
+    return Status::OK();
+}
+
+Status
+ExecutionEngineImpl::VecSearchWithFlat(ExecutionEngineContext& context, const query::VectorQueryPtr& vector_param,
+                                       knowhere::VecIndexPtr& vec_index, std::vector<int64_t>& offset) {
+    TimeRecorder rc(LogOut("[%s][%ld] ExecutionEngineImpl::Search", "search", 0));
+
+    if (vec_index == nullptr) {
+        LOG_ENGINE_ERROR_ << LogOut("[%s][%ld] ExecutionEngineImpl: index is null, failed to search", "search", 0);
+        return Status(DB_ERROR, "index is null");
+    }
+
+    uint64_t nq = vector_param->nq;
+    auto query_vector = vector_param->query_vector;
+    uint64_t topk = vector_param->topk;
+
+    context.query_result_ = std::make_shared<QueryResult>();
+    context.query_result_->result_ids_.resize(topk * nq);
+    context.query_result_->result_distances_.resize(topk * nq);
+
+    milvus::json conf = vector_param->extra_params;
+    conf[knowhere::meta::TOPK] = topk;
+    conf[knowhere::Metric::TYPE] = vector_param->metric_type;
+    auto adapter = knowhere::AdapterMgr::GetInstance().GetAdapter(vec_index->index_type());
+    if (!adapter->CheckSearch(conf, vec_index->index_type(), vec_index->index_mode())) {
+        LOG_ENGINE_ERROR_ << LogOut("[%s][%ld] Illegal search params", "search", 0);
+        throw Exception(DB_ERROR, "Illegal search params");
+    }
+
+    rc.RecordSection("query prepare");
+    knowhere::DatasetPtr dataset;
+    if (!query_vector.float_data.empty()) {
+        dataset = knowhere::GenDataset(nq, vec_index->Dim(), query_vector.float_data.data());
+    } else {
+        dataset = knowhere::GenDataset(nq, vec_index->Dim(), query_vector.binary_data.data());
+    }
+    auto result = vec_index->QueryWithOffset(dataset, conf, offset);
+
+    MapAndCopyResult(result, vec_index->GetUids(), nq, topk, context.query_result_->result_distances_.data(),
+                     context.query_result_->result_ids_.data());
+
+    return Status::OK();
+}
+
+Status
 ExecutionEngineImpl::Search(ExecutionEngineContext& context) {
     try {
         faiss::ConcurrentBitsetPtr bitset;
@@ -372,6 +460,7 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
         SegmentPtr segment_ptr;
         segment_reader_->GetSegment(segment_ptr);
         knowhere::VecIndexPtr vec_index = nullptr;
+        knowhere::VecIndexPtr vec_index_flat = nullptr;
         std::unordered_map<std::string, engine::DataType> attr_type;
 
         auto segment_visitor = segment_reader_->GetSegmentVisitor();
@@ -385,6 +474,7 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
             if (field->GetFtype() == static_cast<snapshot::FTYPE_TYPE>(engine::DataType::VECTOR_FLOAT) ||
                 field->GetFtype() == static_cast<snapshot::FTYPE_TYPE>(engine::DataType::VECTOR_BINARY)) {
                 STATUS_CHECK(segment_ptr->GetVectorIndex(name, vec_index));
+                STATUS_CHECK(segment_ptr->GetVectorIndex(name + "_flat", vec_index_flat));
             } else {
                 attr_type.insert(std::make_pair(name, static_cast<engine::DataType>(field->GetFtype())));
             }
@@ -407,7 +497,7 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
             status = StrategyThree();
         } else if (entity_count_ * (1 - score) <= 4096) {
             // strategy 1
-            status = StrategyOne();
+            status = StrategyOne(context, bitset, attr_type, vector_placeholder, list, vec_index_flat);
         } else {
             // strategy 2
             status = StrategyTwo(context, bitset, attr_type, vector_placeholder, list, vec_index);
@@ -491,7 +581,31 @@ ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query,
 }
 
 Status
-ExecutionEngineImpl::StrategyOne() {
+ExecutionEngineImpl::StrategyOne(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset,
+                                 std::unordered_map<std::string, engine::DataType>& attr_type,
+                                 std::string& vector_placeholder, faiss::ConcurrentBitsetPtr& list,
+                                 knowhere::VecIndexPtr& vec_index_flat) {
+    auto status = ExecBinaryQuery(context.query_ptr_->root, bitset, attr_type, vector_placeholder);
+    // Do And
+    for (int64_t i = 0; i < entity_count_; i++) {
+        if (!list->test(i) && !bitset->test(i)) {
+            list->set(i);
+        }
+    }
+
+    // make offset list
+    std::vector<int64_t> offset;
+    vec_index_flat->SetBlacklist(list);
+
+    auto& vector_param = context.query_ptr_->vectors.at(vector_placeholder);
+    if (!vector_param->query_vector.float_data.empty()) {
+        vector_param->nq = vector_param->query_vector.float_data.size() / vec_index_flat->Dim();
+    } else if (!vector_param->query_vector.binary_data.empty()) {
+        vector_param->nq = vector_param->query_vector.binary_data.size() * 8 / vec_index_flat->Dim();
+    }
+
+    status = VecSearchWithFlat(context, context.query_ptr_->vectors.at(vector_placeholder), vec_index_flat, offset);
+    return status;
 }
 
 Status
@@ -515,7 +629,7 @@ ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::Concurr
         vector_param->nq = vector_param->query_vector.binary_data.size() * 8 / vec_index->Dim();
     }
 
-    status = VecSearch(context, context.query_ptr_->vectors.at(vector_placeholder), vec_index);
+    status = VecSearchWithOptimizer(context, context.query_ptr_->vectors.at(vector_placeholder), vec_index, false);
     return status;
 }
 
