@@ -113,7 +113,9 @@ class ExecutionEngineImpl : public ExecutionEngine {
                 faiss::ConcurrentBitsetPtr& list, knowhere::VecIndexPtr& vec_index);
 
     Status
-    StrategyThree();
+    StrategyThree(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset,
+                  std::unordered_map<std::string, engine::DataType>& attr_type, std::string& vector_placeholder,
+                  faiss::ConcurrentBitsetPtr& list, knowhere::VecIndexPtr& vec_index);
 
  private:
     segment::SegmentReaderPtr segment_reader_;

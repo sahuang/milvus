@@ -494,12 +494,12 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
         //     return status;
         // }
 
-        auto strategy = context.query_ptr_->strategy; // the strategy specified by DSL
+        auto strategy = context.query_ptr_->strategy;  // the strategy specified by DSL
         switch (strategy) {
             case 0: {
                 if (score <= 0.2) {
                     // strategy 3
-                    status = StrategyThree();
+                    status = StrategyThree(context, bitset, attr_type, vector_placeholder, list_flat, vec_index);
                 } else if (entity_count_ * (1 - score) <= 4096) {
                     // strategy 1
                     status = StrategyOne(context, bitset, attr_type, vector_placeholder, list_flat, vec_index_flat);
@@ -518,12 +518,10 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
                 break;
             }
             case 3: {
-                status = StrategyThree();
+                status = StrategyThree(context, bitset, attr_type, vector_placeholder, list_flat, vec_index);
                 break;
             }
-            default: {
-                break;
-            }
+            default: { break; }
         }
         if (!status.ok()) {
             return status;
@@ -610,14 +608,16 @@ ExecutionEngineImpl::StrategyOne(ExecutionEngineContext& context, faiss::Concurr
                                  knowhere::VecIndexPtr& vec_index_flat) {
     auto status = ExecBinaryQuery(context.query_ptr_->root, bitset, attr_type, vector_placeholder);
     // Do And
+    // make offset list
+    std::vector<int64_t> offset;
     for (int64_t i = 0; i < entity_count_; i++) {
         if (!list->test(i) && !bitset->test(i)) {
             list->set(i);
+        } else if (!list->test(i) && bitset->test(i)) {
+            offset.emplace_back(i);
         }
     }
 
-    // make offset list
-    std::vector<int64_t> offset;
     vec_index_flat->SetBlacklist(list);
 
     auto& vector_param = context.query_ptr_->vectors.at(vector_placeholder);
@@ -657,7 +657,72 @@ ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::Concurr
 }
 
 Status
-ExecutionEngineImpl::StrategyThree() {
+ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset,
+                                   std::unordered_map<std::string, engine::DataType>& attr_type,
+                                   std::string& vector_placeholder, faiss::ConcurrentBitsetPtr& list,
+                                   knowhere::VecIndexPtr& vec_index) {
+    auto& vector_param = context.query_ptr_->vectors.at(vector_placeholder);
+    if (!vector_param->query_vector.float_data.empty()) {
+        vector_param->nq = vector_param->query_vector.float_data.size() / vec_index->Dim();
+    } else if (!vector_param->query_vector.binary_data.empty()) {
+        vector_param->nq = vector_param->query_vector.binary_data.size() * 8 / vec_index->Dim();
+    }
+
+    auto status = VecSearchWithOptimizer(context, vector_param, vec_index, true);
+    if (!status.ok()) {
+        return status;
+    }
+
+    status = ExecBinaryQuery(context.query_ptr_->root, bitset, attr_type, vector_placeholder);
+
+    auto uids = vec_index->GetUids();
+    auto nq = vector_param->nq;
+    auto topk = vector_param->topk;
+    auto topk2 = topk * 2;
+
+    auto& result_ids = context.query_result_->result_ids_;
+    auto& result_distances = context.query_result_->result_distances_;
+    std::vector<engine::ResultIds> ids(nq);
+    std::vector<engine::ResultDistances> distances(nq);
+    for (int i = 0; i < vector_param->nq; i++) {
+        ids[i].resize(topk2);
+        distances[i].resize(topk2);
+        memcpy(ids[i].data(), result_ids.data() + i * topk2, topk2 * sizeof(faiss::Index::idx_t));
+        memcpy(distances[i].data(), result_distances.data() + i * topk2, topk2 * sizeof(faiss::Index::distance_t));
+    }
+    // Do And
+    for (int64_t i = entity_count_ - 1; i >= 0; i--) {
+        if (!list->test(i) && !bitset->test(i)) {
+            list->set(i);
+        } else if (list->test(i) || !bitset->test(i)) {
+            for (auto id : result_ids) {
+                if (id == uids[i]) {
+                    auto& cur_result_ids = ids[i / nq];
+                    cur_result_ids.erase(cur_result_ids.begin() + i % nq, cur_result_ids.begin() + i % nq + 1);
+                    result_ids.erase(result_ids.begin() + i, result_ids.begin() + i + 1);
+                    auto& cur_result_dis = distances[i / nq];
+                    cur_result_dis.erase(cur_result_dis.begin() + i % nq, cur_result_dis.begin() + i % nq + 1);
+                    result_distances.erase(result_distances.begin() + i, result_distances.begin() + i + 1);
+                }
+            }
+        }
+    }
+
+    for (int64_t i = 0; i < nq; i++) {
+        if (ids[i].size() < topk) {
+            context.query_result_->result_ids_.clear();
+            context.query_result_->result_distances_.clear();
+            status = StrategyTwo(context, bitset, attr_type, vector_placeholder, list, vec_index);
+            return status;
+        } else if (ids[i].size() > topk) {
+            auto remove_size = ids[i].size() - topk;
+            result_ids.erase(result_ids.begin() + i * topk, result_ids.begin() + i * topk + remove_size);
+            result_distances.erase(result_distances.begin() + i * topk,
+                                   result_distances.begin() + i * topk + remove_size);
+        }
+    }
+
+    return Status::OK();
 }
 
 Status

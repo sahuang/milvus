@@ -121,7 +121,7 @@ struct Query {
     std::set<std::string> index_fields;
     std::unordered_map<std::string, std::string> metric_types;
 
-    int strategy;
+    int strategy = 0;
 };
 using QueryPtr = std::shared_ptr<Query>;
 
