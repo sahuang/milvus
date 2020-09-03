@@ -93,6 +93,12 @@ class ExecutionEngineImpl : public ExecutionEngine {
     IndexedRangeQuery(faiss::ConcurrentBitsetPtr& bitset, const DataType& data_type, knowhere::IndexPtr& index_ptr,
                       milvus::json& range_values_json);
 
+    Status
+    TermQueryScore(const query::TermQueryPtr& term_query, float* score);
+
+    Status
+    RangeQueryScore(const query::RangeQueryPtr& range_query, float* score);
+
     using AddSegmentFileOperation = std::shared_ptr<snapshot::ChangeSegmentFileOperation>;
     Status
     CreateSnapshotIndexFile(AddSegmentFileOperation& operation, const std::string& field_name,

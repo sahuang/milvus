@@ -114,7 +114,8 @@ SearchTask::OnExecute() {
         engine::ExecutionEngineContext context;
         context.query_ptr_ = query_ptr_;
         context.query_result_ = std::make_shared<engine::QueryResult>();
-        STATUS_CHECK(execution_engine_->Search(context));
+        //        STATUS_CHECK(execution_engine_->Search(context));
+        STATUS_CHECK(execution_engine_->SearchWithOptimizer(context));
 
         rc.RecordSection("search done");
 

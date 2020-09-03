@@ -176,6 +176,8 @@ ExecutionEngineImpl::Load(const TargetFields& field_names) {
                 segment_reader_->LoadVectorIndex(name, index_ptr, true);
                 index_exist = (index_ptr != nullptr);
             }
+            knowhere::VecIndexPtr flat_index;
+            segment_reader_->LoadFlatIndex(name, flat_index, "_flat");
         } else {
             knowhere::IndexPtr index_ptr;
             STATUS_CHECK(segment_reader_->LoadStructuredIndex(name, index_ptr));
@@ -599,6 +601,37 @@ ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query,
         }
     }
     return status;
+}
+
+Status
+ExecutionEngineImpl::TermQueryScore(const milvus::query::TermQueryPtr& term_query, float* score) {
+    //    try {
+    //        auto term_query_json = term_query->json_obj;
+    //        JSON_NULL_CHECK(term_query_json);
+    //        auto term_it = term_query_json.begin();
+    //        if (term_it != term_query_json.end()) {
+    //            const std::string& field_name = term_it.key();
+    //            SegmentPtr segment_ptr;
+    //            segment_reader_->GetSegment(segment_ptr);
+    //            if (term_it.value().is_object()) {
+    //                milvus::json term_values_json = term_it.value()["values"];
+    //                STATUS_CHECK(IndexedTermQuery(bitset, field_name, attr_type.at(field_name), term_values_json));
+    //            } else {
+    //                STATUS_CHECK(IndexedTermQuery(bitset, field_name, attr_type.at(field_name), term_it.value()));
+    //            }
+    //        }
+    //        term_it++;
+    //        if (term_it != term_query_json.end()) {
+    //            return Status(SERVER_INVALID_DSL_PARAMETER, "Term query does not support multiple fields");
+    //        }
+    //    } catch (std::exception& ex) {
+    //        return Status{SERVER_INVALID_DSL_PARAMETER, ex.what()};
+    //    }
+    //    return Status::OK();
+}
+
+Status
+ExecutionEngineImpl::RangeQueryScore(const milvus::query::RangeQueryPtr& range_query, float* score) {
 }
 
 Status

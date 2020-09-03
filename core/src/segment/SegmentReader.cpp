@@ -381,6 +381,88 @@ SegmentReader::LoadVectorIndex(const std::string& field_name, knowhere::VecIndex
 }
 
 Status
+SegmentReader::LoadFlatIndex(const std::string& field_name, milvus::knowhere::VecIndexPtr& index_ptr,
+                             std::string extra) {
+    try {
+        // check field type
+        auto& ss_codec = codec::Codec::instance();
+        auto field_visitor = segment_visitor_->GetFieldVisitor(field_name);
+        const engine::snapshot::FieldPtr& field = field_visitor->GetField();
+        if (!engine::IsVectorField(field)) {
+            return Status(DB_ERROR, "Field is not vector type");
+        }
+
+        // load uids
+        std::vector<int64_t> uids;
+        STATUS_CHECK(LoadUids(uids));
+
+        // load deleted doc
+        auto& segment = segment_visitor_->GetSegment();
+
+        faiss::ConcurrentBitsetPtr concurrent_bitset_ptr = std::make_shared<faiss::ConcurrentBitset>(uids.size());
+
+        segment::DeletedDocsPtr deleted_docs_ptr;
+        STATUS_CHECK(LoadDeletedDocs(deleted_docs_ptr));
+        if (deleted_docs_ptr != nullptr) {
+            auto& deleted_docs = deleted_docs_ptr->GetDeletedDocs();
+            for (auto& offset : deleted_docs) {
+                concurrent_bitset_ptr->set(offset);
+            }
+        }
+
+        knowhere::BinarySet index_data;
+        knowhere::BinaryPtr raw_data, compress_data;
+
+        // if index not specified, or index file not created, return a temp index(IDMAP type)
+        auto temp_index_path = engine::snapshot::GetResPath<engine::snapshot::Segment>(dir_collections_, segment);
+        temp_index_path += "/";
+        std::string temp_index_name = field_name + extra + ".idmap";
+        temp_index_path += temp_index_name;
+
+        // if the data is in cache, no need to read file
+        auto data_obj = cache::CpuCacheMgr::GetInstance().GetItem(temp_index_path);
+        if (data_obj != nullptr) {
+            index_ptr = std::static_pointer_cast<knowhere::VecIndex>(data_obj);
+            segment_ptr_->SetVectorIndex(field_name + extra, index_ptr);
+        } else {
+            auto& json = field->GetParams();
+            if (json.find(knowhere::meta::DIM) == json.end()) {
+                return Status(DB_ERROR, "Vector field dimension undefined");
+            }
+            int64_t dimension = json[knowhere::meta::DIM];
+            engine::BinaryDataPtr raw;
+            STATUS_CHECK(LoadField(field_name, raw, false));
+
+            auto dataset = knowhere::GenDataset(uids.size(), dimension, raw->data_.data());
+
+            // construct IDMAP index
+            knowhere::VecIndexFactory& vec_index_factory = knowhere::VecIndexFactory::GetInstance();
+            if (field->GetFtype() == engine::DataType::VECTOR_FLOAT) {
+                index_ptr = vec_index_factory.CreateVecIndex(knowhere::IndexEnum::INDEX_FAISS_IDMAP,
+                                                             knowhere::IndexMode::MODE_CPU);
+            } else {
+                index_ptr = vec_index_factory.CreateVecIndex(knowhere::IndexEnum::INDEX_FAISS_BIN_IDMAP,
+                                                             knowhere::IndexMode::MODE_CPU);
+            }
+            milvus::json conf{{knowhere::meta::DIM, dimension}};
+            index_ptr->Train(knowhere::DatasetPtr(), conf);
+            index_ptr->AddWithoutIds(dataset, conf);
+            index_ptr->SetUids(uids);
+            index_ptr->SetBlacklist(concurrent_bitset_ptr);
+            segment_ptr_->SetVectorIndex(field_name + extra, index_ptr);
+
+            cache::CpuCacheMgr::GetInstance().InsertItem(temp_index_path, index_ptr);
+        }
+
+        return Status::OK();
+    } catch (std::exception& e) {
+        std::string err_msg = "Failed to load vector index: " + std::string(e.what());
+        LOG_ENGINE_ERROR_ << err_msg;
+        return Status(DB_ERROR, err_msg);
+    }
+}
+
+Status
 SegmentReader::LoadStructuredIndex(const std::string& field_name, knowhere::IndexPtr& index_ptr) {
     try {
         segment_ptr_->GetStructuredIndex(field_name, index_ptr);

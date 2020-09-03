@@ -56,6 +56,9 @@ class SegmentReader {
     LoadVectorIndex(const std::string& field_name, knowhere::VecIndexPtr& index_ptr, bool flat = false);
 
     Status
+    LoadFlatIndex(const std::string& field_name, knowhere::VecIndexPtr& index_ptr, std::string extra = "");
+
+    Status
     LoadStructuredIndex(const std::string& field_name, knowhere::IndexPtr& index_ptr);
 
     Status

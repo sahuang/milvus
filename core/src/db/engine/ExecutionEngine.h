@@ -46,6 +46,9 @@ class ExecutionEngine {
     Search(ExecutionEngineContext& context) = 0;
 
     virtual Status
+    SearchWithOptimizer(ExecutionEngineContext& context) = 0;
+
+    virtual Status
     BuildIndex() = 0;
 };
 

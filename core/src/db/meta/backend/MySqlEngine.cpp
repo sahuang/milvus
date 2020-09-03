@@ -88,7 +88,7 @@ static const MetaSchema SEGMENTFILE_SCHEMA(TABLE_SEGMENT_FILE,
                                            {MetaIdField, MetaCollectionIdField, MetaPartitionIdField,
                                             MetaSegmentIdField, MetaFieldElementIdField, MetaFEtypeField,
                                             MetaRowCountField, MetaSizeField, MetaLSNField, MetaStateField,
-                                            MetaCreatedOnField, MetaUpdatedOnField});
+                                            MetaCreatedOnField, MetaUpdatedOnField, MetaParamsField});
 
 static const MetaSchema SCHEMACOMMIT_SCHEMA(TABLE_SCHEMA_COMMIT,
                                             {MetaIdField, MetaCollectionIdField, MetaMappingsField, MetaLSNField,

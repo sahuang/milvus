@@ -647,6 +647,7 @@ class SegmentFile : public BaseResource<SegmentFile>,
                     public FEtypeField,
                     public RowCountField,
                     public SizeField,
+                    public ParamsField,
                     public IdField,
                     public LsnField,
                     public StateField,
@@ -661,7 +662,7 @@ class SegmentFile : public BaseResource<SegmentFile>,
     static constexpr const char* Name = "SegmentFile";
 
     SegmentFile(ID_TYPE collection_id, ID_TYPE partition_id, ID_TYPE segment_id, ID_TYPE field_element_id,
-                FETYPE_TYPE fetype, SIZE_TYPE row_cnt = 0, SIZE_TYPE size = 0, ID_TYPE id = 0, LSN_TYPE lsn = 0,
+                FETYPE_TYPE fetype, SIZE_TYPE row_cnt = 0, SIZE_TYPE size = 0, const json& params = JEmpty, ID_TYPE id = 0, LSN_TYPE lsn = 0,
                 State status = PENDING, TS_TYPE created_on = GetMicroSecTimeStamp(),
                 TS_TYPE UpdatedOnField = GetMicroSecTimeStamp());
 };
