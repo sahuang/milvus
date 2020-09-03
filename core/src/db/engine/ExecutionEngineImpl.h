@@ -94,15 +94,29 @@ class ExecutionEngineImpl : public ExecutionEngine {
                       milvus::json& range_values_json);
 
     Status
-    TermQueryScore(const query::TermQueryPtr& term_query, float* score);
+    TermQueryScore(const query::TermQueryPtr& term_query, const std::unordered_map<std::string, DataType>& attr_type,
+                   float* score);
+
+    template <typename T>
+    Status
+    ComputeTermScore(const DataType& data_type, milvus::json& term_values_json);
 
     Status
-    RangeQueryScore(const query::RangeQueryPtr& range_query, float* score);
+    RangeQueryScore(const query::RangeQueryPtr& range_query, const std::unordered_map<std::string, DataType>& attr_type,
+                    float* score);
+
+    template <typename T>
+    Status
+    ComputeRangeScore(const knowhere::IndexPtr& index_ptr, const DataType& data_type, milvus::json& range_values_json,
+                      float* score);
 
     using AddSegmentFileOperation = std::shared_ptr<snapshot::ChangeSegmentFileOperation>;
     Status
     CreateSnapshotIndexFile(AddSegmentFileOperation& operation, const std::string& field_name,
                             CollectionIndex& index_info);
+
+    Status
+    GetSFParams(knowhere::IndexPtr& index_ptr, const DataType& data_type, json& sf_params);
 
     Status
     BuildKnowhereIndex(const std::string& field_name, const CollectionIndex& index_info,

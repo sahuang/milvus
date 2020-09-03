@@ -491,10 +491,7 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
         // Score is the percentage that is estimated to be filtered out by scalar fields
         float score = 0.0f;
         auto status = Status::OK();
-        // auto status = EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, &score);
-        // if (!status.ok()) {
-        //     return status;
-        // }
+        // STATUS_CHECK(EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, &score));
 
         auto strategy = context.query_ptr_->strategy;  // the strategy specified by DSL
         switch (strategy) {
@@ -541,41 +538,38 @@ ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query,
                                    std::string& vector_placeholder, float* score) {
     Status status = Status::OK();
     if (general_query->leaf == nullptr) {
-        faiss::ConcurrentBitsetPtr left_bitset, right_bitset;
+        float* left_score;
+        float* right_score;
         if (general_query->bin->left_query != nullptr) {
-            status = ExecBinaryQuery(general_query->bin->left_query, left_bitset, attr_type, vector_placeholder);
+            status = EstimateScore(general_query->bin->left_query, attr_type, vector_placeholder, left_score);
             if (!status.ok()) {
                 return status;
             }
         }
         if (general_query->bin->right_query != nullptr) {
-            status = ExecBinaryQuery(general_query->bin->right_query, right_bitset, attr_type, vector_placeholder);
+            status = EstimateScore(general_query->bin->right_query, attr_type, vector_placeholder, left_score);
             if (!status.ok()) {
                 return status;
             }
         }
 
-        if (left_bitset == nullptr || right_bitset == nullptr) {
-            // bitset = left_bitset != nullptr ? left_bitset : right_bitset;
+        if (left_score == nullptr || right_score == nullptr) {
+            *score = left_score != nullptr ? *left_score : *right_score;
         } else {
             switch (general_query->bin->relation) {
                 case milvus::query::QueryRelation::AND:
                 case milvus::query::QueryRelation::R1: {
-                    // bitset = (*left_bitset) & right_bitset;
+                    *score = (*left_score) * (*right_score);
                     break;
                 }
                 case milvus::query::QueryRelation::OR:
                 case milvus::query::QueryRelation::R2:
                 case milvus::query::QueryRelation::R3: {
-                    // bitset = (*left_bitset) | right_bitset;
+                    *score = (*left_score) + (*right_score);
                     break;
                 }
                 case milvus::query::QueryRelation::R4: {
-                    for (uint64_t i = 0; i < entity_count_; ++i) {
-                        if (left_bitset->test(i) && !right_bitset->test(i)) {
-                            // bitset->set(i);
-                        }
-                    }
+                    *score = (*left_score) * (1 - *right_score);
                     break;
                 }
                 default: {
@@ -591,8 +585,7 @@ ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query,
             // STATUS_CHECK(ProcessTermQuery(bitset, general_query->leaf->term_query, attr_type));
         }
         if (general_query->leaf->range_query != nullptr) {
-            // bitset = std::make_shared<faiss::ConcurrentBitset>(entity_count_);
-            // STATUS_CHECK(ProcessRangeQuery(attr_type, bitset, general_query->leaf->range_query));
+            STATUS_CHECK(RangeQueryScore(general_query->leaf->range_query, attr_type, score));
         }
         if (!general_query->leaf->vector_placeholder.empty()) {
             // skip vector query
@@ -604,7 +597,8 @@ ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query,
 }
 
 Status
-ExecutionEngineImpl::TermQueryScore(const milvus::query::TermQueryPtr& term_query, float* score) {
+ExecutionEngineImpl::TermQueryScore(const milvus::query::TermQueryPtr& term_query,
+                                    const std::unordered_map<std::string, DataType>& attr_type, float* score) {
     //    try {
     //        auto term_query_json = term_query->json_obj;
     //        JSON_NULL_CHECK(term_query_json);
@@ -615,9 +609,7 @@ ExecutionEngineImpl::TermQueryScore(const milvus::query::TermQueryPtr& term_quer
     //            segment_reader_->GetSegment(segment_ptr);
     //            if (term_it.value().is_object()) {
     //                milvus::json term_values_json = term_it.value()["values"];
-    //                STATUS_CHECK(IndexedTermQuery(bitset, field_name, attr_type.at(field_name), term_values_json));
     //            } else {
-    //                STATUS_CHECK(IndexedTermQuery(bitset, field_name, attr_type.at(field_name), term_it.value()));
     //            }
     //        }
     //        term_it++;
@@ -630,8 +622,81 @@ ExecutionEngineImpl::TermQueryScore(const milvus::query::TermQueryPtr& term_quer
     //    return Status::OK();
 }
 
+template <typename T>
 Status
-ExecutionEngineImpl::RangeQueryScore(const milvus::query::RangeQueryPtr& range_query, float* score) {
+ExecutionEngineImpl::ComputeRangeScore(const knowhere::IndexPtr& index_ptr, const milvus::engine::DataType& data_type,
+                                       milvus::json& range_values_json, float* score) {
+    try {
+        auto T_index = std::dynamic_pointer_cast<knowhere::StructuredIndexSort<T>>(index_ptr);
+
+        bool has_gt = false, has_lt = false;
+        T gt, lt;
+        for (auto& range_value_it : range_values_json.items()) {
+            const std::string& comp_op = range_value_it.key();
+            T value = range_value_it.value();
+            if (comp_op == "LT" || comp_op == "LE") {
+                has_lt = true;
+                lt = value;
+            } else {
+                has_gt = true;
+                gt = value;
+            }
+        }
+        if (not has_gt) {
+            gt = T_index->Max();
+        }
+        if (not has_lt) {
+            lt = T_index->Min();
+        }
+        *score = (float)(gt - lt) / (T_index->Max() - T_index->Min());
+    } catch (std::exception& exception) {
+        return Status{SERVER_INVALID_DSL_PARAMETER, exception.what()};
+    }
+    return Status::OK();
+}
+
+Status
+ExecutionEngineImpl::RangeQueryScore(const milvus::query::RangeQueryPtr& range_query,
+                                     const std::unordered_map<std::string, DataType>& attr_type, float* score) {
+    SegmentPtr segment_ptr;
+    segment_reader_->GetSegment(segment_ptr);
+    try {
+        auto range_query_json = range_query->json_obj;
+        JSON_NULL_CHECK(range_query_json);
+        auto range_it = range_query_json.begin();
+        if (range_it != range_query_json.end()) {
+            const std::string& field_name = range_it.key();
+            knowhere::IndexPtr index_ptr = nullptr;
+            segment_ptr->GetStructuredIndex(field_name, index_ptr);
+            auto type = attr_type.at(field_name);
+            switch (type) {
+                case DataType::INT32: {
+                    STATUS_CHECK(ComputeRangeScore<int32_t>(index_ptr, type, range_it.value(), score));
+                    break;
+                }
+                case DataType::INT64: {
+                    STATUS_CHECK(ComputeRangeScore<int64_t>(index_ptr, type, range_it.value(), score));
+                    break;
+                }
+                case DataType::FLOAT: {
+                    STATUS_CHECK(ComputeRangeScore<float>(index_ptr, type, range_it.value(), score));
+                    break;
+                }
+                case DataType::DOUBLE: {
+                    STATUS_CHECK(ComputeRangeScore<double>(index_ptr, type, range_it.value(), score));
+                    break;
+                }
+                default: { return Status(SERVER_INVALID_DSL_PARAMETER, "Range query field type is wrong"); }
+            }
+        }
+        range_it++;
+        if (range_it != range_query_json.end()) {
+            return Status(SERVER_INVALID_DSL_PARAMETER, "Range query does not support multiple fields");
+        }
+    } catch (std::exception& ex) {
+        return Status{SERVER_INVALID_DSL_PARAMETER, ex.what()};
+    }
+    return Status::OK();
 }
 
 Status
@@ -1073,6 +1138,39 @@ ExecutionEngineImpl::BuildIndex() {
 }
 
 Status
+ExecutionEngineImpl::GetSFParams(milvus::knowhere::IndexPtr& index_ptr, const milvus::engine::DataType& data_type,
+                                 milvus::json& sf_params) {
+    switch (data_type) {
+        case DataType::INT32: {
+            auto int32_index = std::dynamic_pointer_cast<knowhere::StructuredIndexSort<int32_t>>(index_ptr);
+            sf_params["max"] = int32_index->Max();
+            sf_params["min"] = int32_index->Min();
+            break;
+        }
+        case DataType::INT64: {
+            auto int32_index = std::dynamic_pointer_cast<knowhere::StructuredIndexSort<int32_t>>(index_ptr);
+            sf_params["max"] = int32_index->Max();
+            sf_params["min"] = int32_index->Min();
+            break;
+        }
+        case DataType::FLOAT: {
+            auto int32_index = std::dynamic_pointer_cast<knowhere::StructuredIndexSort<int32_t>>(index_ptr);
+            sf_params["max"] = int32_index->Max();
+            sf_params["min"] = int32_index->Min();
+            break;
+        }
+        case DataType::DOUBLE: {
+            auto int32_index = std::dynamic_pointer_cast<knowhere::StructuredIndexSort<int32_t>>(index_ptr);
+            sf_params["max"] = int32_index->Max();
+            sf_params["min"] = int32_index->Min();
+            break;
+        }
+        default: { return Status(SERVER_UNEXPECTED_ERROR, "Wrong data type"); }
+    }
+    return Status::OK();
+}
+
+Status
 ExecutionEngineImpl::CreateSnapshotIndexFile(AddSegmentFileOperation& operation, const std::string& field_name,
                                              CollectionIndex& index_info) {
     auto segment_visitor = segment_reader_->GetSegmentVisitor();
@@ -1115,6 +1213,16 @@ ExecutionEngineImpl::CreateSnapshotIndexFile(AddSegmentFileOperation& operation,
         sf_context.collection_id = segment->GetCollectionId();
         sf_context.partition_id = segment->GetPartitionId();
         sf_context.segment_id = segment->GetID();
+
+        SegmentPtr segment_ptr;
+        segment_reader_->GetSegment(segment_ptr);
+        knowhere::IndexPtr index_ptr;
+        segment_ptr->GetStructuredIndex(field_name, index_ptr);
+        json sf_param;
+        if (!IsVectorField(field) && index_ptr) {
+            STATUS_CHECK(GetSFParams(index_ptr, field->GetFtype(), sf_param));
+        }
+        sf_context.params = sf_param;
 
         auto status = operation->CommitNewSegmentFile(sf_context, seg_file);
         if (!status.ok()) {

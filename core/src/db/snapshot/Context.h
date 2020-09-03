@@ -40,6 +40,7 @@ struct SegmentFileContext {
     ID_TYPE segment_id;
     ID_TYPE partition_id;
     ID_TYPE collection_id;
+    json params = {};
 };
 
 struct LoadOperationContext {
