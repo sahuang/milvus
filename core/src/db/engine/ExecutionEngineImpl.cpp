@@ -763,7 +763,8 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
                                    std::unordered_map<std::string, engine::DataType>& attr_type,
                                    std::string& vector_placeholder, faiss::ConcurrentBitsetPtr& list,
                                    knowhere::VecIndexPtr& vec_index) {
-    auto& vector_param = context.query_ptr_->vectors.at(vector_placeholder);
+    //    auto& vector_param = context.query_ptr_->vectors.at(vector_placeholder);
+    auto& vector_param = context.query_ptr_->vectors.begin()->second;
     if (!vector_param->query_vector.float_data.empty()) {
         vector_param->nq = vector_param->query_vector.float_data.size() / vec_index->Dim();
     } else if (!vector_param->query_vector.binary_data.empty()) {
@@ -818,9 +819,9 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
             return status;
         } else if (ids[i].size() > topk) {
             auto remove_size = ids[i].size() - topk;
-            result_ids.erase(result_ids.begin() + i * topk, result_ids.begin() + i * topk + remove_size);
-            result_distances.erase(result_distances.begin() + i * topk,
-                                   result_distances.begin() + i * topk + remove_size);
+            result_ids.erase(result_ids.begin() + (i + 1) * topk, result_ids.begin() + (i + 1) * topk + remove_size);
+            result_distances.erase(result_distances.begin() + (i + 1) * topk,
+                                   result_distances.begin() + (i + 1) * topk + remove_size);
         }
     }
 
