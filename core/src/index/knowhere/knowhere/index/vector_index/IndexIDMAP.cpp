@@ -123,6 +123,8 @@ IDMAP::QueryWithOffset(const DatasetPtr& dataset_ptr, const Config& config, std:
     }
     GET_TENSOR_DATA(dataset_ptr)
 
+    printf("Query with offset\n");
+
     auto k = config[meta::TOPK].get<int64_t>();
     auto elems = rows * k;
     size_t p_id_size = sizeof(int64_t) * elems;
@@ -257,8 +259,9 @@ IDMAP::QueryWithOffsetImpl(int64_t n, const float* data, std::vector<int64_t>& o
                            int64_t* labels, const Config& config) {
     // assign the metric type
     auto flat_index = dynamic_cast<faiss::IndexIDMap*>(index_.get())->index;
-    flat_index->metric_type = GetMetricType(config[Metric::TYPE].get<std::string>());
-    index_->search_with_offset(n, data, offset, k, distances, labels, bitset_);
+    // printf("string: %s\n", GetMetricType(config[Metric::TYPE].get<std::string>()));
+    flat_index->metric_type = faiss::METRIC_L2;
+    flat_index->search_with_offset(n, data, offset, k, distances, labels, bitset_);
 }
 
 }  // namespace knowhere

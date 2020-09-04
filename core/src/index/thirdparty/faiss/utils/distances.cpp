@@ -627,6 +627,7 @@ void knn_L2sqr_with_offset (
         float_maxheap_array_t * res,
         ConcurrentBitsetPtr bitset) 
 {
+    printf("with offset\n");
     size_t k = res->k;
     size_t thread_max_num = omp_get_max_threads();
     size_t valid_num = offset.size();
