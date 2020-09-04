@@ -78,6 +78,12 @@ class StructuredIndex : public Index {
 
     virtual const faiss::ConcurrentBitsetPtr
     Range(const T lower_bound_value, bool lb_inclusive, const T upper_bound_value, bool ub_inclusive) = 0;
+
+    virtual const T
+    Max() = 0;
+
+    virtual const T
+    Min() = 0;
 };
 
 template <typename T>

@@ -52,6 +52,12 @@ class StructuredIndexSort : public StructuredIndex<T> {
     const faiss::ConcurrentBitsetPtr
     Range(T lower_bound_value, bool lb_inclusive, T upper_bound_value, bool ub_inclusive) override;
 
+    const T
+    Max() override;
+
+    const T
+    Min() override;
+
     const std::vector<IndexStructure<T>>&
     GetData() {
         return data_;
