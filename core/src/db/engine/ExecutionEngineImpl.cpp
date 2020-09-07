@@ -178,6 +178,9 @@ ExecutionEngineImpl::Load(const TargetFields& field_names) {
             }
             knowhere::VecIndexPtr flat_index;
             segment_reader_->LoadFlatIndex(name, flat_index, "_flat");
+            for (int64_t i = 0; i < index_ptr->GetUids().size(); i++) {
+                uid2off_.insert({index_ptr->GetUids()[i], i});
+            }
         } else {
             knowhere::IndexPtr index_ptr;
             STATUS_CHECK(segment_reader_->LoadStructuredIndex(name, index_ptr));
@@ -724,6 +727,7 @@ ExecutionEngineImpl::StrategyOne(ExecutionEngineContext& context, faiss::Concurr
     }
 
     status = VecSearchWithFlat(context, vector_param, vec_index_flat, offset);
+    vec_index_flat->SetBlacklist(list);
     return status;
 }
 
@@ -765,10 +769,12 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
         vector_param->nq = vector_param->query_vector.binary_data.size() * 8 / vec_index->Dim();
     }
 
+    vec_index->SetBlacklist(nullptr);
     auto status = VecSearchWithOptimizer(context, vector_param, vec_index, true);
     if (!status.ok()) {
         return status;
     }
+    vec_index->SetBlacklist(list);
 
     status = ExecBinaryQuery(context.query_ptr_->root, bitset, attr_type, vector_placeholder);
 
@@ -788,20 +794,33 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
         memcpy(distances[i].data(), result_distances.data() + i * topk2, topk2 * sizeof(faiss::Index::distance_t));
     }
     // Do And
-    for (int64_t i = entity_count_ - 1; i >= 0; i--) {
-        if (!list->test(i) && !bitset->test(i)) {
-            list->set(i);
-        } else if (list->test(i) || !bitset->test(i)) {
-            for (auto id : result_ids) {
-                if (id == uids[i]) {
-                    auto& cur_result_ids = ids[i / nq];
-                    cur_result_ids.erase(cur_result_ids.begin() + i % nq, cur_result_ids.begin() + i % nq + 1);
-                    result_ids.erase(result_ids.begin() + i, result_ids.begin() + i + 1);
-                    auto& cur_result_dis = distances[i / nq];
-                    cur_result_dis.erase(cur_result_dis.begin() + i % nq, cur_result_dis.begin() + i % nq + 1);
-                    result_distances.erase(result_distances.begin() + i, result_distances.begin() + i + 1);
-                }
-            }
+    //    for (int64_t i = entity_count_ - 1; i >= 0; i--) {
+    //        if (!list->test(i) && bitset->test(i)) {
+    //            list->set(i);
+    //        }
+    //
+    //        if (list->test(i) || !bitset->test(i)) {
+    //            for (auto id : result_ids) {
+    //                if (id == uids[i]) {
+    //                    auto& cur_result_ids = ids[i / nq];
+    //                    cur_result_ids.erase(cur_result_ids.begin() + i % nq, cur_result_ids.begin() + i % nq + 1);
+    //                    result_ids.erase(result_ids.begin() + i, result_ids.begin() + i + 1);
+    //                    auto& cur_result_dis = distances[i / nq];
+    //                    cur_result_dis.erase(cur_result_dis.begin() + i % nq, cur_result_dis.begin() + i % nq + 1);
+    //                    result_distances.erase(result_distances.begin() + i, result_distances.begin() + i + 1);
+    //                }
+    //            }
+    //        }
+    //    }
+
+    for (int64_t i = result_ids.size() - 1; i >= 0; i--) {
+        if (list->test(uid2off_.at(result_ids[i])) || !bitset->test(uid2off_.at(result_ids[i]))) {
+            result_ids.erase(result_ids.begin() + i, result_ids.begin() + i + 1);
+            result_distances.erase(result_distances.begin() + i, result_distances.begin() + i + 1);
+            auto& cur_result_ids = ids[i / topk2];
+            cur_result_ids.erase(cur_result_ids.begin() + i % topk2, cur_result_ids.begin() + i % topk2 + 1);
+            auto& cur_result_dis = distances[i / topk2];
+            cur_result_dis.erase(cur_result_dis.begin() + i % topk2, cur_result_dis.begin() + i % topk2 + 1);
         }
     }
 
