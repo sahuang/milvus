@@ -627,7 +627,6 @@ void knn_L2sqr_with_offset (
         float_maxheap_array_t * res,
         ConcurrentBitsetPtr bitset) 
 {
-    printf("with offset\n");
     size_t k = res->k;
     size_t thread_max_num = omp_get_max_threads();
     size_t valid_num = offset.size();
@@ -655,19 +654,17 @@ void knn_L2sqr_with_offset (
 #pragma omp parallel for schedule(static)
             for (size_t j = 0; j < valid_num; j++) {
                 size_t curr = offset[j];
-                if(!bitset || !bitset->test(curr)) {
-                    size_t thread_no = omp_get_thread_num();
-                    const float *y_j = y + curr * d;
-                    const float *x_i = x + x_from * d;
-                    for (size_t i = 0; i < size; i++) {
-                        float disij = fvec_L2sqr (x_i, y_j, d);
-                        float * val_ = value + thread_no * thread_heap_size + i * k;
-                        int64_t * ids_ = labels + thread_no * thread_heap_size + i * k;
-                        if (disij < val_[0]) {
-                            maxheap_swap_top (k, val_, ids_, disij, curr);
-                        }
-                        x_i += d;
+                size_t thread_no = omp_get_thread_num();
+                const float *y_j = y + curr * d;
+                const float *x_i = x + x_from * d;
+                for (size_t i = 0; i < size; i++) {
+                    float disij = fvec_L2sqr (x_i, y_j, d);
+                    float * val_ = value + thread_no * thread_heap_size + i * k;
+                    int64_t * ids_ = labels + thread_no * thread_heap_size + i * k;
+                    if (disij < val_[0]) {
+                        maxheap_swap_top (k, val_, ids_, disij, curr);
                     }
+                    x_i += d;
                 }
             }
 
@@ -719,11 +716,9 @@ void knn_L2sqr_with_offset (
 
             for (size_t j = 0; j < valid_num; j++) {
                 size_t curr = offset[j];
-                if (!bitset || !bitset->test(curr)) {
-                    float disij = fvec_L2sqr (x_i, y + curr * d, d);
-                    if (disij < val_[0]) {
-                        maxheap_swap_top (k, val_, ids_, disij, curr);
-                    }
+                float disij = fvec_L2sqr (x_i, y + curr * d, d);
+                if (disij < val_[0]) {
+                    maxheap_swap_top (k, val_, ids_, disij, curr);
                 }
             }
 

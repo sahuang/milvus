@@ -25,7 +25,6 @@ def main():
             {"field": "int_field", "type": DataType.INT32},
             {"field": "vec", "type": DataType.FLOAT_VECTOR, "params": {"dim": dim}}
         ],
-        "segment_row_count": 100000,
         "auto_id": False
     }
     milvus.create_collection(collection_name, collection_param)
@@ -44,10 +43,10 @@ def main():
     ids = milvus.insert(collection_name, hybrid_entities, [i for i in range(rows)])
     milvus.flush([collection_name])
     print("Flush ... ")
-    time.sleep(3)
+    time.sleep(1)
 
     print("Create index ......")
-    milvus.create_index(collection_name, "vec", {"index_type": "IVF_FLAT", "params": {"nlist": 1000}, "metric_type": "L2"})
+    milvus.create_index(collection_name, "vec", {"index_type": "IVF_FLAT", "params": {"nlist": 1024}, "metric_type": "L2"})
     print("Create index done.")
     print()
 
@@ -67,7 +66,7 @@ def main():
                     {
                         "vector": {
                             "vec": {
-                                "topk": 10, "query": vec[1995: 2000], "params": {"nprobe": 50}
+                                "topk": 10, "query": vec[0: 1000], "params": {"nprobe": 1024}
                             }
                         }
                     }
@@ -80,7 +79,8 @@ def main():
         t0 = time.time()
         results = milvus.search(collection_name, query_hybrid)
         print("Time spent for search: " + str(time.time() - t0))
-        for r in list(results):
+        for i in range(0, 5):
+            r = list(results)[i]
             print("ids: ", r.ids)
             print("distances: ", r.distances)
 

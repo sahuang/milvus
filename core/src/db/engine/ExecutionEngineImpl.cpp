@@ -382,10 +382,7 @@ ExecutionEngineImpl::VecSearchWithFlat(ExecutionEngineContext& context, const qu
     } else {
         dataset = knowhere::GenDataset(nq, vec_index->Dim(), query_vector.binary_data.data());
     }
-    printf("Strategy 1. topk = %ld. offset size = %ld, dim = %ld\n", topk, offset.size(), vec_index->Dim());
-    printf("vec: %p\n", vec_index);
     auto result = vec_index->QueryWithOffset(dataset, conf, offset);
-    printf("Strategy 1 done.\n");
 
     MapAndCopyResult(result, vec_index->GetUids(), nq, topk, context.query_result_->result_distances_.data(),
                      context.query_result_->result_ids_.data());
@@ -497,7 +494,6 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
         // STATUS_CHECK(EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, &score));
 
         auto strategy = context.query_ptr_->strategy;  // the strategy specified by DSL
-        printf("Current strategy: %d\n", strategy);
         switch (strategy) {
             case 0: {
                 if (score <= 0.2) {
@@ -713,14 +709,12 @@ ExecutionEngineImpl::StrategyOne(ExecutionEngineContext& context, faiss::Concurr
     // make offset list
     std::vector<int64_t> offset;
     for (int64_t i = 0; i < entity_count_; i++) {
-        if (!list->test(i) && !bitset->test(i)) {
-            list->set(i);
-        } else if (!list->test(i) && bitset->test(i)) {
+        if (!list->test(i) && bitset->test(i)) {
             offset.emplace_back(i);
         }
     }
 
-    vec_index_flat->SetBlacklist(list);
+    vec_index_flat->SetBlacklist(nullptr);
 
     auto& vector_param = context.query_ptr_->vectors.at(vector_placeholder);
     if (!vector_param->query_vector.float_data.empty()) {

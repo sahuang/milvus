@@ -123,8 +123,6 @@ IDMAP::QueryWithOffset(const DatasetPtr& dataset_ptr, const Config& config, std:
     }
     GET_TENSOR_DATA(dataset_ptr)
 
-    printf("Query with offset\n");
-
     auto k = config[meta::TOPK].get<int64_t>();
     auto elems = rows * k;
     size_t p_id_size = sizeof(int64_t) * elems;
