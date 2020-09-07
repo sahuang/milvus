@@ -10,6 +10,25 @@ from milvus import Milvus, DataType
 _HOST = '127.0.0.1'
 _PORT = '19530'
 
+def get_recall_value(true_ids, result_ids):
+    """
+    Use the intersection length
+    """
+    sum_radio = 0.0
+    for index, item in enumerate(result_ids):
+        # tmp = set(item).intersection(set(flat_id_list[index]))
+        tmp = set(true_ids[index]).intersection(set(item))
+        sum_radio = sum_radio + len(tmp) / len(item)
+        # logger.debug(sum_radio)
+    return round(sum_radio / len(result_ids), 3)
+
+def get_ids(result):
+    ids = []
+    for item in result:
+        ids.append([entity.id for entity in item])
+    return ids
+
+
 def main():
 
     dim = 64
@@ -25,6 +44,7 @@ def main():
             {"field": "int_field", "type": DataType.INT32},
             {"field": "vec", "type": DataType.FLOAT_VECTOR, "params": {"dim": dim}}
         ],
+        "segment_row_count": 100000,
         "auto_id": False
     }
     milvus.create_collection(collection_name, collection_param)
@@ -33,7 +53,7 @@ def main():
     int_list = []
     for i in range(1000):
         for j in range(1000):
-            int_list.append(i)
+            int_list.append(j)
     vec = [[random.random() for _ in range(dim)] for _ in range(rows)]
     hybrid_entities = [
         {"field": "int_field", "values": int_list, "type": DataType.INT32},
@@ -50,23 +70,26 @@ def main():
     print("Create index done.")
     print()
 
-    # experiment 1 - only few entities left. strategy 1 should be preferred.
-    print("==========Experiment 1==========")
-    print("1,000 out of 1,000,000 remain. Strategy 1 is preferred.")
-    for strategy in range(1, 4):
-        print("==========Strategy " + str(strategy) + "==========")
+    res_ids = [0, 1, 2, 3]
+    passed = False
+
+    # experiment
+    print("==========Experiment ==========")
+    for strategy in [2, 2, 3, 1]:
+        if passed:
+            print("==========Strategy " + str(strategy) + "==========")
         query_hybrid = {
             "bool": {
                 "must": [
                     {
                         "range": {
-                            "int_field": {"GT": -1, "LT": 1}
+                            "int_field": {"GT": -1000, "LT": 2000}
                         }
                     },
                     {
                         "vector": {
                             "vec": {
-                                "topk": 10, "query": vec[0: 1000], "params": {"nprobe": 1024}
+                                "topk": 10, "query": vec[0: 1000], "params": {"nprobe": 500}
                             }
                         }
                     }
@@ -75,14 +98,19 @@ def main():
             "strategy": strategy
         }
 
-        print("Start searach ..")
+        if passed:
+            print("Start search ..")
         t0 = time.time()
         results = milvus.search(collection_name, query_hybrid)
-        print("Time spent for search: " + str(time.time() - t0))
-        for i in range(0, 5):
-            r = list(results)[i]
-            print("ids: ", r.ids)
-            print("distances: ", r.distances)
+        if passed:
+            print("Time spent for search: " + str(time.time() - t0))
+        res_ids[strategy] = get_ids(results)
+        passed = True
+
+
+    # check recall rate
+    print("Strategy 2 recall rate: " + str(get_recall_value(res_ids[1], res_ids[2])))
+    print("Strategy 3 recall rate: " + str(get_recall_value(res_ids[1], res_ids[3])))
 
     milvus.drop_collection(collection_name)
 
