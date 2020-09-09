@@ -494,11 +494,11 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
         // Score is the percentage that is estimated to be filtered out by scalar fields
         float score = 1.0f;
         auto status = Status::OK();
-         STATUS_CHECK(EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, score));
 
         auto strategy = context.query_ptr_->strategy;  // the strategy specified by DSL
         switch (strategy) {
             case 0: {
+                STATUS_CHECK(EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, score));
                 if (score <= 0.2) {
                     // strategy 3
                     status = StrategyThree(context, bitset, attr_type, vector_placeholder, list_flat, vec_index);
@@ -558,7 +558,7 @@ ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query,
 
         if (left_score == -1 && right_score == -1) {
             score = 1.0f;
-        } else if (left_score == -1|| right_score == -1) {
+        } else if (left_score == -1 || right_score == -1) {
             score = left_score != -1 ? left_score : right_score;
         } else {
             switch (general_query->bin->relation) {
