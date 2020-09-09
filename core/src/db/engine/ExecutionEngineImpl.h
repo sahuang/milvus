@@ -75,7 +75,7 @@ class ExecutionEngineImpl : public ExecutionEngine {
 
     Status
     EstimateScore(const query::GeneralQueryPtr& general_query, std::unordered_map<std::string, DataType>& attr_type,
-                  std::string& vector_placeholder, float* score);
+                  std::string& vector_placeholder, float& score);
 
     Status
     ProcessTermQuery(faiss::ConcurrentBitsetPtr& bitset, const query::TermQueryPtr& term_query,
@@ -103,12 +103,12 @@ class ExecutionEngineImpl : public ExecutionEngine {
 
     Status
     RangeQueryScore(const query::RangeQueryPtr& range_query, const std::unordered_map<std::string, DataType>& attr_type,
-                    float* score);
+                    float& score);
 
     template <typename T>
     Status
     ComputeRangeScore(const knowhere::IndexPtr& index_ptr, const DataType& data_type, milvus::json& range_values_json,
-                      float* score);
+                      float& score);
 
     using AddSegmentFileOperation = std::shared_ptr<snapshot::ChangeSegmentFileOperation>;
     Status

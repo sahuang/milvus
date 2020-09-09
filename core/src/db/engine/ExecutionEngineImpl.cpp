@@ -492,9 +492,9 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
 
         // Estimate score for optimizer to decide which strategy to use
         // Score is the percentage that is estimated to be filtered out by scalar fields
-        float score = 0.0f;
+        float score = 1.0f;
         auto status = Status::OK();
-        // STATUS_CHECK(EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, &score));
+         STATUS_CHECK(EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, score));
 
         auto strategy = context.query_ptr_->strategy;  // the strategy specified by DSL
         switch (strategy) {
@@ -538,11 +538,11 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
 Status
 ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query,
                                    std::unordered_map<std::string, DataType>& attr_type,
-                                   std::string& vector_placeholder, float* score) {
+                                   std::string& vector_placeholder, float& score) {
     Status status = Status::OK();
     if (general_query->leaf == nullptr) {
-        float* left_score;
-        float* right_score;
+        float left_score = -1.0f;
+        float right_score = -1.0f;
         if (general_query->bin->left_query != nullptr) {
             status = EstimateScore(general_query->bin->left_query, attr_type, vector_placeholder, left_score);
             if (!status.ok()) {
@@ -550,29 +550,31 @@ ExecutionEngineImpl::EstimateScore(const query::GeneralQueryPtr& general_query,
             }
         }
         if (general_query->bin->right_query != nullptr) {
-            status = EstimateScore(general_query->bin->right_query, attr_type, vector_placeholder, left_score);
+            status = EstimateScore(general_query->bin->right_query, attr_type, vector_placeholder, right_score);
             if (!status.ok()) {
                 return status;
             }
         }
 
-        if (left_score == nullptr || right_score == nullptr) {
-            *score = left_score != nullptr ? *left_score : *right_score;
+        if (left_score == -1 && right_score == -1) {
+            score = 1.0f;
+        } else if (left_score == -1|| right_score == -1) {
+            score = left_score != -1 ? left_score : right_score;
         } else {
             switch (general_query->bin->relation) {
                 case milvus::query::QueryRelation::AND:
                 case milvus::query::QueryRelation::R1: {
-                    *score = (*left_score) * (*right_score);
+                    score = left_score * right_score;
                     break;
                 }
                 case milvus::query::QueryRelation::OR:
                 case milvus::query::QueryRelation::R2:
                 case milvus::query::QueryRelation::R3: {
-                    *score = (*left_score) + (*right_score);
+                    score = left_score + right_score;
                     break;
                 }
                 case milvus::query::QueryRelation::R4: {
-                    *score = (*left_score) * (1 - *right_score);
+                    score = left_score * (1 - right_score);
                     break;
                 }
                 default: {
@@ -628,10 +630,12 @@ ExecutionEngineImpl::TermQueryScore(const milvus::query::TermQueryPtr& term_quer
 template <typename T>
 Status
 ExecutionEngineImpl::ComputeRangeScore(const knowhere::IndexPtr& index_ptr, const milvus::engine::DataType& data_type,
-                                       milvus::json& range_values_json, float* score) {
+                                       milvus::json& range_values_json, float& score) {
     try {
         auto T_index = std::dynamic_pointer_cast<knowhere::StructuredIndexSort<T>>(index_ptr);
 
+        T max = T_index->Max();
+        T min = T_index->Min();
         bool has_gt = false, has_lt = false;
         T gt, lt;
         for (auto& range_value_it : range_values_json.items()) {
@@ -645,13 +649,13 @@ ExecutionEngineImpl::ComputeRangeScore(const knowhere::IndexPtr& index_ptr, cons
                 gt = value;
             }
         }
-        if (not has_gt) {
-            gt = T_index->Max();
+        if (not has_gt || gt < min) {
+            gt = min;
         }
-        if (not has_lt) {
-            lt = T_index->Min();
+        if (not has_lt || lt > max) {
+            lt = max;
         }
-        *score = (float)(gt - lt) / (T_index->Max() - T_index->Min());
+        score = (float)(lt - gt) / (max - min);
     } catch (std::exception& exception) {
         return Status{SERVER_INVALID_DSL_PARAMETER, exception.what()};
     }
@@ -660,7 +664,7 @@ ExecutionEngineImpl::ComputeRangeScore(const knowhere::IndexPtr& index_ptr, cons
 
 Status
 ExecutionEngineImpl::RangeQueryScore(const milvus::query::RangeQueryPtr& range_query,
-                                     const std::unordered_map<std::string, DataType>& attr_type, float* score) {
+                                     const std::unordered_map<std::string, DataType>& attr_type, float& score) {
     SegmentPtr segment_ptr;
     segment_reader_->GetSegment(segment_ptr);
     try {
