@@ -331,7 +331,7 @@ ExecutionEngineImpl::VecSearchWithOptimizer(milvus::engine::ExecutionEngineConte
     uint64_t topk = vector_param->topk;
     // maybe need to expand topk
     if (expand)
-        topk = (int64_t) (1.0 * topk * delta) + 1;
+        topk = (int64_t) (1.0 * topk * delta);
 
     context.query_result_ = std::make_shared<QueryResult>();
     context.query_result_->result_ids_.resize(topk * nq);
@@ -802,7 +802,7 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
     auto uids = vec_index->GetUids();
     auto nq = vector_param->nq;
     auto topk = vector_param->topk;
-    auto topk2 = (int64_t) (1.0 * topk * delta) + 1;
+    auto topk2 = (int64_t) (1.0 * topk * delta);
 
     auto& result_ids = context.query_result_->result_ids_;
     auto& result_distances = context.query_result_->result_distances_;
