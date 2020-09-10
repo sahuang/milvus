@@ -15,6 +15,9 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "config/ServerConfig.h"
 #include "db/SnapshotUtils.h"
@@ -85,6 +88,13 @@ ExecutionEngineImpl::CreateVecIndex(const std::string& index_name) {
         LOG_ENGINE_ERROR_ << err_msg;
     }
     return index;
+}
+
+double
+ExecutionEngineImpl::getmillisecs () {
+    struct timeval tv;
+    gettimeofday (&tv, nullptr);
+    return tv.tv_sec * 1e3 + tv.tv_usec * 1e-3;
 }
 
 Status
@@ -742,6 +752,7 @@ ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::Concurr
                                  std::string& vector_placeholder, faiss::ConcurrentBitsetPtr& list,
                                  knowhere::VecIndexPtr& vec_index) {
     auto status = ExecBinaryQuery(context.query_ptr_->root, bitset, attr_type, vector_placeholder);
+    double t0 = getmillisecs();
     // Do And
     for (int64_t i = 0; i < entity_count_; i++) {
         if (!list->test(i) && !bitset->test(i)) {
@@ -749,6 +760,7 @@ ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::Concurr
         }
     }
     vec_index->SetBlacklist(list);
+    printf("StrategyTwo SetBlacklist: %.2f\n", getmillisecs() - t0);
 
     auto& vector_param = context.query_ptr_->vectors.at(vector_placeholder);
     if (!vector_param->query_vector.float_data.empty()) {
@@ -757,7 +769,9 @@ ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::Concurr
         vector_param->nq = vector_param->query_vector.binary_data.size() * 8 / vec_index->Dim();
     }
 
+    t0 = getmillisecs();
     status = VecSearchWithOptimizer(context, vector_param, vec_index, false);
+    printf("StrategyTwo VecSearchWithOptimizer: %.2f\n", getmillisecs() - t0);
     return status;
 }
 
@@ -775,7 +789,9 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
 
     // printf("delta: %f\n", delta);
     vec_index->SetBlacklist(nullptr);
+    double t0 = getmillisecs();
     auto status = VecSearchWithOptimizer(context, vector_param, vec_index, delta, true);
+    printf("StrategyThree VecSearchWithOptimizer: %.2f\n", getmillisecs() - t0);
     if (!status.ok()) {
         return status;
     }
@@ -792,6 +808,7 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
     auto& result_distances = context.query_result_->result_distances_;
     std::vector<engine::ResultIds> ids(nq);
     std::vector<engine::ResultDistances> distances(nq);
+    t0 = getmillisecs();
     for (int i = 0; i < vector_param->nq; i++) {
         ids[i].resize(topk2);
         distances[i].resize(topk2);
@@ -800,7 +817,8 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
     }
 
     for (int64_t i = result_ids.size() - 1; i >= 0; i--) {
-        if (list->test(uid2off_.at(result_ids[i])) || !bitset->test(uid2off_.at(result_ids[i]))) {
+        auto id = uid2off_.at(result_ids[i]);
+        if (list->test(id) || !bitset->test(id)) {
             result_ids.erase(result_ids.begin() + i, result_ids.begin() + i + 1);
             result_distances.erase(result_distances.begin() + i, result_distances.begin() + i + 1);
             auto& cur_result_ids = ids[i / topk2];
@@ -823,6 +841,8 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
                                    result_distances.begin() + (i + 1) * topk + remove_size);
         }
     }
+
+    printf("StrategyThree filtering time: %.2f\n", getmillisecs() - t0);
 
     return Status::OK();
 }

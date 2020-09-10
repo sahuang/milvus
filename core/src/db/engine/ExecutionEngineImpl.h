@@ -69,6 +69,8 @@ class ExecutionEngineImpl : public ExecutionEngine {
     Status
     Load(const TargetFields& field_names);
 
+    double getmillisecs ();
+
     Status
     ExecBinaryQuery(const query::GeneralQueryPtr& general_query, faiss::ConcurrentBitsetPtr& bitset,
                     std::unordered_map<std::string, DataType>& attr_type, std::string& vector_placeholder);
