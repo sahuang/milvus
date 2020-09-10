@@ -355,7 +355,8 @@ ExecutionEngineImpl::VecSearchWithOptimizer(milvus::engine::ExecutionEngineConte
     }
     auto result = vec_index->Query(dataset, conf);
 
-    MapAndCopyResult(result, vec_index->GetUids(), nq, topk, context.query_result_->result_distances_.data(),
+    if (!expand)
+        MapAndCopyResult(result, vec_index->GetUids(), nq, topk, context.query_result_->result_distances_.data(),
                      context.query_result_->result_ids_.data());
 
     return Status::OK();
@@ -829,8 +830,19 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
         }
     }
 
-    result_ids.resize(nq * topk);
-    result_distances.resize(nq * topk);
+    int64_t num = nq * topk;
+    result_ids.resize(num);
+    result_distances.resize(num);
+
+    /* map offsets to ids */
+    for (int64_t i = 0; i < num; ++i) {
+        int64_t offset = result_ids[i];
+        if (offset != -1) {
+            result_ids[i] = uids[offset];
+        } else {
+            result_ids[i] = -1;
+        }
+    }
 
     /* 
     std::vector<engine::ResultIds> ids(nq);
