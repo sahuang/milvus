@@ -773,8 +773,9 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
         vector_param->nq = vector_param->query_vector.binary_data.size() * 8 / vec_index->Dim();
     }
 
+    // printf("delta: %f\n", delta);
     vec_index->SetBlacklist(nullptr);
-    auto status = VecSearchWithOptimizer(context, vector_param, vec_index, true);
+    auto status = VecSearchWithOptimizer(context, vector_param, vec_index, delta, true);
     if (!status.ok()) {
         return status;
     }
