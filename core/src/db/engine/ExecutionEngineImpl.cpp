@@ -355,9 +355,19 @@ ExecutionEngineImpl::VecSearchWithOptimizer(milvus::engine::ExecutionEngineConte
     }
     auto result = vec_index->Query(dataset, conf);
 
-    if (!expand)
+    if (!expand) {
         MapAndCopyResult(result, vec_index->GetUids(), nq, topk, context.query_result_->result_distances_.data(),
                      context.query_result_->result_ids_.data());
+    } else {
+        auto res_ids = result->Get<int64_t*>(knowhere::meta::IDS);
+        auto res_dist = result->Get<float*>(knowhere::meta::DISTANCE);
+
+        memcpy(context.query_result_->result_distances_.data(), res_dist, sizeof(float) * nq * topk);
+        memcpy(context.query_result_->result_ids_.data(), res_ids, sizeof(int64_t) * nq * topk);
+
+        free(res_ids);
+        free(res_dist);
+    }
 
     return Status::OK();
 }
@@ -843,43 +853,6 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
             result_ids[i] = -1;
         }
     }
-
-    /* 
-    std::vector<engine::ResultIds> ids(nq);
-    std::vector<engine::ResultDistances> distances(nq);
-    for (int i = 0; i < vector_param->nq; i++) {
-        ids[i].resize(topk2);
-        distances[i].resize(topk2);
-        memcpy(ids[i].data(), result_ids.data() + i * topk2, topk2 * sizeof(faiss::Index::idx_t));
-        memcpy(distances[i].data(), result_distances.data() + i * topk2, topk2 * sizeof(faiss::Index::distance_t));
-    }
-
-    for (int64_t i = result_ids.size() - 1; i >= 0; i--) {
-        auto id = uid2off_.at(result_ids[i]);
-        if (list->test(id) || !bitset->test(id)) {
-            result_ids.erase(result_ids.begin() + i, result_ids.begin() + i + 1);
-            result_distances.erase(result_distances.begin() + i, result_distances.begin() + i + 1);
-            auto& cur_result_ids = ids[i / topk2];
-            cur_result_ids.erase(cur_result_ids.begin() + i % topk2, cur_result_ids.begin() + i % topk2 + 1);
-            auto& cur_result_dis = distances[i / topk2];
-            cur_result_dis.erase(cur_result_dis.begin() + i % topk2, cur_result_dis.begin() + i % topk2 + 1);
-        }
-    }
-
-    for (int64_t i = 0; i < nq; i++) {
-        if (ids[i].size() < topk) {
-            context.query_result_->result_ids_.clear();
-            context.query_result_->result_distances_.clear();
-            status = StrategyTwo(context, bitset, attr_type, vector_placeholder, list, vec_index);
-            return status;
-        } else if (ids[i].size() > topk) {
-            auto remove_size = ids[i].size() - topk;
-            result_ids.erase(result_ids.begin() + (i + 1) * topk, result_ids.begin() + (i + 1) * topk + remove_size);
-            result_distances.erase(result_distances.begin() + (i + 1) * topk,
-                                   result_distances.begin() + (i + 1) * topk + remove_size);
-        }
-    }
-    */
 
     printf("StrategyThree filtering time: %.2f\n", getmillisecs() - t0);
 
