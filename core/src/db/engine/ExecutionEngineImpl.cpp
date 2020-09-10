@@ -812,11 +812,11 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
         int curr = i * topk;
         int invalid_count = 0;
         for (int j = 0; j < topk2; j++) {
-            auto id = uid2off_.at(result_ids[i * topk2 + j]);
+            auto id = result_ids[i * topk2 + j];
             if (list->test(id) || !bitset->test(id)) {
                 invalid_count++;
             } else {
-                result_ids[curr] = result_ids[i * topk2 + j];
+                result_ids[curr] = id;
                 result_distances[curr] = result_distances[i * topk2 + j];
                 curr++;
             }
