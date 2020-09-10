@@ -806,9 +806,35 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
 
     auto& result_ids = context.query_result_->result_ids_;
     auto& result_distances = context.query_result_->result_distances_;
+
+    t0 = getmillisecs();
+    for (int i = 0; i < nq; i++) {
+        int curr = i * topk;
+        int invalid_count = 0;
+        for (int j = 0; j < topk2; j++) {
+            auto id = uid2off_.at(result_ids[i * topk2 + j]);
+            if (list->test(id) || !bitset->test(id)) {
+                invalid_count++;
+            } else {
+                result_ids[curr] = result_ids[i * topk2 + j];
+                result_distances[curr] = result_distances[i * topk2 + j];
+                curr++;
+            }
+        }
+        if (invalid_count + topk > topk2) {
+            context.query_result_->result_ids_.clear();
+            context.query_result_->result_distances_.clear();
+            status = StrategyTwo(context, bitset, attr_type, vector_placeholder, list, vec_index);
+            return status;
+        }
+    }
+
+    result_ids.resize(nq * topk);
+    result_distances.resize(nq * topk);
+
+    /* 
     std::vector<engine::ResultIds> ids(nq);
     std::vector<engine::ResultDistances> distances(nq);
-    t0 = getmillisecs();
     for (int i = 0; i < vector_param->nq; i++) {
         ids[i].resize(topk2);
         distances[i].resize(topk2);
@@ -841,6 +867,7 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
                                    result_distances.begin() + (i + 1) * topk + remove_size);
         }
     }
+    */
 
     printf("StrategyThree filtering time: %.2f\n", getmillisecs() - t0);
 
