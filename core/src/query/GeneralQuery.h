@@ -122,6 +122,7 @@ struct Query {
     std::unordered_map<std::string, std::string> metric_types;
 
     int strategy = 0;
+    float delta = 2.0f;
 };
 using QueryPtr = std::shared_ptr<Query>;
 

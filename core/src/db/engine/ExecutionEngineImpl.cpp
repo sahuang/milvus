@@ -308,7 +308,7 @@ ExecutionEngineImpl::VecSearch(milvus::engine::ExecutionEngineContext& context,
 Status
 ExecutionEngineImpl::VecSearchWithOptimizer(milvus::engine::ExecutionEngineContext& context,
                                             const query::VectorQueryPtr& vector_param, knowhere::VecIndexPtr& vec_index,
-                                            bool expand) {
+                                            float delta, bool expand) {
     TimeRecorder rc(LogOut("[%s][%ld] ExecutionEngineImpl::Search", "search", 0));
 
     if (vec_index == nullptr) {
@@ -321,7 +321,7 @@ ExecutionEngineImpl::VecSearchWithOptimizer(milvus::engine::ExecutionEngineConte
     uint64_t topk = vector_param->topk;
     // maybe need to expand topk
     if (expand)
-        topk *= 2;
+        topk = (int64_t) (1.0 * topk * delta) + 1;
 
     context.query_result_ = std::make_shared<QueryResult>();
     context.query_result_->result_ids_.resize(topk * nq);
@@ -491,17 +491,18 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
         entity_count_ = list->capacity();
 
         // Estimate score for optimizer to decide which strategy to use
-        // Score is the percentage that is estimated to be filtered out by scalar fields
+        // Score is the percentage remain by scalar fields
         float score = 1.0f;
         auto status = Status::OK();
 
         auto strategy = context.query_ptr_->strategy;  // the strategy specified by DSL
+        auto delta = context.query_ptr_->delta; // default to 2, the constant to multiply topK
         switch (strategy) {
             case 0: {
                 STATUS_CHECK(EstimateScore(context.query_ptr_->root, attr_type, vector_placeholder, score));
                 if (score <= 0.2) {
                     // strategy 3
-                    status = StrategyThree(context, bitset, attr_type, vector_placeholder, list_flat, vec_index);
+                    status = StrategyThree(context, bitset, attr_type, vector_placeholder, list_flat, vec_index, delta);
                 } else if (entity_count_ * (1 - score) <= 4096) {
                     // strategy 1
                     status = StrategyOne(context, bitset, attr_type, vector_placeholder, list_flat, vec_index_flat);
@@ -520,7 +521,7 @@ ExecutionEngineImpl::SearchWithOptimizer(ExecutionEngineContext& context) {
                 break;
             }
             case 3: {
-                status = StrategyThree(context, bitset, attr_type, vector_placeholder, list_flat, vec_index);
+                status = StrategyThree(context, bitset, attr_type, vector_placeholder, list_flat, vec_index, delta);
                 break;
             }
             default: { break; }
@@ -764,8 +765,7 @@ Status
 ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset,
                                    std::unordered_map<std::string, engine::DataType>& attr_type,
                                    std::string& vector_placeholder, faiss::ConcurrentBitsetPtr& list,
-                                   knowhere::VecIndexPtr& vec_index) {
-    //    auto& vector_param = context.query_ptr_->vectors.at(vector_placeholder);
+                                   knowhere::VecIndexPtr& vec_index, float delta) {
     auto& vector_param = context.query_ptr_->vectors.begin()->second;
     if (!vector_param->query_vector.float_data.empty()) {
         vector_param->nq = vector_param->query_vector.float_data.size() / vec_index->Dim();
@@ -785,7 +785,7 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
     auto uids = vec_index->GetUids();
     auto nq = vector_param->nq;
     auto topk = vector_param->topk;
-    auto topk2 = topk * 2;
+    auto topk2 = (int64_t) (1.0 * topk * delta) + 1;
 
     auto& result_ids = context.query_result_->result_ids_;
     auto& result_distances = context.query_result_->result_distances_;
@@ -797,25 +797,6 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
         memcpy(ids[i].data(), result_ids.data() + i * topk2, topk2 * sizeof(faiss::Index::idx_t));
         memcpy(distances[i].data(), result_distances.data() + i * topk2, topk2 * sizeof(faiss::Index::distance_t));
     }
-    // Do And
-    //    for (int64_t i = entity_count_ - 1; i >= 0; i--) {
-    //        if (!list->test(i) && bitset->test(i)) {
-    //            list->set(i);
-    //        }
-    //
-    //        if (list->test(i) || !bitset->test(i)) {
-    //            for (auto id : result_ids) {
-    //                if (id == uids[i]) {
-    //                    auto& cur_result_ids = ids[i / nq];
-    //                    cur_result_ids.erase(cur_result_ids.begin() + i % nq, cur_result_ids.begin() + i % nq + 1);
-    //                    result_ids.erase(result_ids.begin() + i, result_ids.begin() + i + 1);
-    //                    auto& cur_result_dis = distances[i / nq];
-    //                    cur_result_dis.erase(cur_result_dis.begin() + i % nq, cur_result_dis.begin() + i % nq + 1);
-    //                    result_distances.erase(result_distances.begin() + i, result_distances.begin() + i + 1);
-    //                }
-    //            }
-    //        }
-    //    }
 
     for (int64_t i = result_ids.size() - 1; i >= 0; i--) {
         if (list->test(uid2off_.at(result_ids[i])) || !bitset->test(uid2off_.at(result_ids[i]))) {
