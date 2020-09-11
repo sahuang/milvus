@@ -771,7 +771,7 @@ ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::Concurr
         }
     }
     vec_index->SetBlacklist(list);
-    printf("StrategyTwo SetBlacklist: %.2f\n", getmillisecs() - t0);
+    // printf("StrategyTwo SetBlacklist: %.2f\n", getmillisecs() - t0);
 
     auto& vector_param = context.query_ptr_->vectors.at(vector_placeholder);
     if (!vector_param->query_vector.float_data.empty()) {
@@ -782,7 +782,7 @@ ExecutionEngineImpl::StrategyTwo(ExecutionEngineContext& context, faiss::Concurr
 
     t0 = getmillisecs();
     status = VecSearchWithOptimizer(context, vector_param, vec_index, false);
-    printf("StrategyTwo VecSearchWithOptimizer: %.2f\n", getmillisecs() - t0);
+    // printf("StrategyTwo VecSearchWithOptimizer: %.2f\n", getmillisecs() - t0);
     return status;
 }
 
@@ -802,7 +802,7 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
     vec_index->SetBlacklist(nullptr);
     double t0 = getmillisecs();
     auto status = VecSearchWithOptimizer(context, vector_param, vec_index, delta, true);
-    printf("StrategyThree VecSearchWithOptimizer: %.2f\n", getmillisecs() - t0);
+    // printf("StrategyThree VecSearchWithOptimizer: %.2f\n", getmillisecs() - t0);
     if (!status.ok()) {
         return status;
     }
@@ -854,7 +854,7 @@ ExecutionEngineImpl::StrategyThree(ExecutionEngineContext& context, faiss::Concu
         }
     }
 
-    printf("StrategyThree filtering time: %.2f\n", getmillisecs() - t0);
+    // printf("StrategyThree filtering time: %.2f\n", getmillisecs() - t0);
 
     return Status::OK();
 }
