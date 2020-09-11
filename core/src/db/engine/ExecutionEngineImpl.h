@@ -50,7 +50,7 @@ class ExecutionEngineImpl : public ExecutionEngine {
 
     Status
     VecSearchWithOptimizer(ExecutionEngineContext& context, const query::VectorQueryPtr& vector_param,
-                           knowhere::VecIndexPtr& vec_index, bool expand = false);
+                           knowhere::VecIndexPtr& vec_index, float delta, bool expand = false);
 
     Status
     VecSearchWithFlat(ExecutionEngineContext& context, const query::VectorQueryPtr& vector_param,
@@ -68,6 +68,8 @@ class ExecutionEngineImpl : public ExecutionEngine {
 
     Status
     Load(const TargetFields& field_names);
+
+    double getmillisecs ();
 
     Status
     ExecBinaryQuery(const query::GeneralQueryPtr& general_query, faiss::ConcurrentBitsetPtr& bitset,
@@ -135,7 +137,7 @@ class ExecutionEngineImpl : public ExecutionEngine {
     Status
     StrategyThree(ExecutionEngineContext& context, faiss::ConcurrentBitsetPtr& bitset,
                   std::unordered_map<std::string, engine::DataType>& attr_type, std::string& vector_placeholder,
-                  faiss::ConcurrentBitsetPtr& list, knowhere::VecIndexPtr& vec_index);
+                  faiss::ConcurrentBitsetPtr& list, knowhere::VecIndexPtr& vec_index, float delta);
 
  private:
     segment::SegmentReaderPtr segment_reader_;
