@@ -316,44 +316,85 @@ ClientTest::DropCollection(const std::string& collection_name) {
     std::cout << "DropCollection function call status: " << stat.message() << std::endl;
 }
 
+milvus::TopKQueryResult
+ClientTest::SearchWithOpt(const std::string& collection_name, int64_t topk, int64_t nprobe, int64_t strategy,
+                          float delta) {
+    nlohmann::json dsl_json, vector_param_json;
+
+    nlohmann::json bool_json, range_json, vector_json;
+    nlohmann::json comp_json;
+    comp_json["GT"] = -1;
+    comp_json["LT"] = 10000;
+    range_json["range"]["int_field"] = comp_json;
+    bool_json["must"].push_back(range_json);
+
+    std::string placeholder = "placeholder_1";
+    vector_json["vector"] = placeholder;
+    bool_json["must"].push_back(vector_json);
+
+    dsl_json["strategy"] = strategy;
+    dsl_json["delta"] = delta;
+
+    dsl_json["bool"] = bool_json;
+
+    nlohmann::json query_vector_json, vector_extra_params;
+    query_vector_json["topk"] = topk;
+    query_vector_json["metric_type"] = "L2";
+    vector_extra_params["nprobe"] = nprobe;
+    query_vector_json["params"] = vector_extra_params;
+    vector_param_json[placeholder]["vec_float"] = query_vector_json;
+
+    std::vector<std::string> tags(1000);
+    for (int64_t i = 0; i < 1000; i++) {
+        tags[i] = "partition_" + i;
+    }
+
+    std::vector<int64_t> record_ids;
+    std::vector<milvus::VectorData> temp_entity_array;
+
+    milvus::VectorParam vector_param = {vector_param_json.dump(), temp_entity_array};
+
+    milvus::TopKQueryResult topk_query_result;
+    auto status = conn_->Search(collection_name, tags, dsl_json.dump(), vector_param, topk_query_result);
+    return topk_query_result;
+}
+
 void
 ClientTest::Test() {
-    std::string collection_name = COLLECTION_NAME;
-    int64_t dim = COLLECTION_DIMENSION;
-    milvus::MetricType metric_type = COLLECTION_METRIC_TYPE;
-
-    std::vector<std::string> table_array;
-    ListCollections(table_array);
-
-    CreateCollection(collection_name);
-//    GetCollectionInfo(collection_name);
-    GetCollectionStats(collection_name);
-
-    ListCollections(table_array);
-    CountEntities(collection_name);
-
-    InsertEntities(collection_name);
-    Flush(collection_name);
-    CountEntities(collection_name);
-    CreateIndex(collection_name, 1024);
-    GetCollectionInfo(collection_name);
+    //    std::string collection_name = COLLECTION_NAME;
+    //    int64_t dim = COLLECTION_DIMENSION;
+    //    milvus::MetricType metric_type = COLLECTION_METRIC_TYPE;
+    //
+    //    std::vector<std::string> table_array;
+    //    ListCollections(table_array);
+    //
+    //    CreateCollection(collection_name);
+    //    //    GetCollectionInfo(collection_name);
     //    GetCollectionStats(collection_name);
     //
-    BuildVectors(NQ, COLLECTION_DIMENSION);
-    //    GetEntityByID(collection_name, search_id_array_);
-    SearchEntities(collection_name, TOP_K, NPROBE, "L2");
-    SearchEntities(collection_name, TOP_K, NPROBE, "IP");
-    //    GetCollectionStats(collection_name);
+    //    ListCollections(table_array);
+    //    CountEntities(collection_name);
     //
-    //    std::vector<int64_t> delete_ids = {search_id_array_[0], search_id_array_[1]};
-    //    DeleteByIds(collection_name, delete_ids);
-    //    GetEntityByID(collection_name, search_id_array_);
-    //    CompactCollection(collection_name);
-    //
-    //    LoadCollection(collection_name);
-    //    SearchEntities(collection_name, TOP_K, NPROBE);  // this line get two search error since we delete two
-    //    entities
-    //
-    //    DropIndex(collection_name, "field_vec", "index_3");
-    //    DropCollection(collection_name);
+    //    InsertEntities(collection_name);
+    //    Flush(collection_name);
+    //    CountEntities(collection_name);
+    //    CreateIndex(collection_name, 1024);
+    //    GetCollectionInfo(collection_name);
+    //    //    GetCollectionStats(collection_name);
+    //    //
+    //    BuildVectors(NQ, COLLECTION_DIMENSION);
+    //    //    GetEntityByID(collection_name, search_id_array_);
+    //    SearchEntities(collection_name, TOP_K, NPROBE, "L2");
+    //    SearchEntities(collection_name, TOP_K, NPROBE, "IP");
+
+    /////////////////////////////////////////////////////////////////////////////
+
+    std::vector<int64_t> strategy = {2, 2, 3, 1};
+    std::vector<milvus::TopKQueryResult> results;
+    int64_t topk = 250;
+    int64_t nprobe = 64;
+    float delta = 1.01;
+    for (int64_t i = 0; i < strategy.size(); i++) {
+        auto result = SearchWithOpt("test_collection_1", topk, nprobe, strategy[i], delta);
+    }
 }

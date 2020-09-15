@@ -57,6 +57,9 @@ class ClientTest {
     void
     SearchEntities(const std::string&, int64_t, int64_t, const std::string metric_type);
 
+    milvus::TopKQueryResult
+    SearchWithOpt(const std::string&, int64_t, int64_t, int64_t strategy, float delta);
+
     void
     SearchEntitiesByID(const std::string&, int64_t, int64_t);
 
