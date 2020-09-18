@@ -60,6 +60,9 @@ class ClientTest {
     milvus::TopKQueryResult
     SearchWithOpt(const std::string&, int64_t, int64_t, int64_t strategy, float delta);
 
+    float
+    CalcRecall(int64_t topk, milvus::TopKQueryResult true_ids, milvus::TopKQueryResult result_ids);
+
     void
     SearchEntitiesByID(const std::string&, int64_t, int64_t);
 

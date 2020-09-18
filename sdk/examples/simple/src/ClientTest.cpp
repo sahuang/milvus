@@ -19,6 +19,13 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <algorithm>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 namespace {
 
@@ -316,6 +323,12 @@ ClientTest::DropCollection(const std::string& collection_name) {
     std::cout << "DropCollection function call status: " << stat.message() << std::endl;
 }
 
+double getmillisecs () {
+    struct timeval tv;
+    gettimeofday (&tv, nullptr);
+    return tv.tv_sec * 1e3 + tv.tv_usec * 1e-3;
+}
+
 milvus::TopKQueryResult
 ClientTest::SearchWithOpt(const std::string& collection_name, int64_t topk, int64_t nprobe, int64_t strategy,
                           float delta) {
@@ -348,53 +361,81 @@ ClientTest::SearchWithOpt(const std::string& collection_name, int64_t topk, int6
     for (int64_t i = 0; i < 1000; i++) {
         tags[i] = "partition_" + i;
     }
+    std::vector<std::string> empty_tags;
 
     std::vector<int64_t> record_ids;
     std::vector<milvus::VectorData> temp_entity_array;
 
+    // read from csv
+    int count = 0;
+    std::string line;
+    std::ifstream myfile ("../../../../query.csv");
+    if (myfile.is_open()) {
+	while ( !myfile.eof() ) {
+	    getline (myfile, line);
+	    std::vector<float> float_data;
+	    if (line.length() == 0) break;
+	    std::string delimiter = ",";
+	    std::stringstream s_stream(line);
+	    while(s_stream.good()) {
+		std::string substr;
+		getline(s_stream, substr, ',');
+		float_data.push_back(std::stod(substr));
+		count++;
+	    }
+	    milvus::VectorData v;
+	    v.float_data = float_data;
+	    temp_entity_array.push_back(v);
+	}
+	myfile.close();
+    } else {
+	std::cout << "Unable to open file." << std::endl;
+    }
+
+    // std::cout << "the log count is: " << temp_entity_array.size() << ", and " << temp_entity_array[0].float_data.size() << std::endl;
+
     milvus::VectorParam vector_param = {vector_param_json.dump(), temp_entity_array};
 
-    milvus::TopKQueryResult topk_query_result;
-    auto status = conn_->Search(collection_name, tags, dsl_json.dump(), vector_param, topk_query_result);
+    milvus::TopKQueryResult topk_query_result;\
+    std::cout << dsl_json.dump() << std::endl;
+    double t0 = getmillisecs();
+    auto status = conn_->Search(collection_name, empty_tags, dsl_json.dump(), vector_param, topk_query_result);
+    std::cout << "Time spent: " << getmillisecs() - t0 << std::endl;
     return topk_query_result;
+}
+
+float
+ClientTest::CalcRecall(int64_t topk, milvus::TopKQueryResult true_ids, milvus::TopKQueryResult result_ids) {
+    float sum_ratio = 0.0f;
+    auto nq = true_ids.size();
+    for (int i = 0; i < nq; i++) {
+        std::vector<int64_t> ids_0 = true_ids[i].ids;
+        std::vector<int64_t> ids_1 = result_ids[i].ids;
+        std::sort(ids_0.begin(), ids_0.end());
+        std::sort(ids_1.begin(), ids_1.end());
+        std::vector<int> v(nq * 2);
+        std::vector<int>::iterator it;
+        it=std::set_intersection (ids_0.begin(), ids_0.end(), ids_1.begin(), ids_1.end(), v.begin());
+        v.resize(it-v.begin());
+        sum_ratio += 1.0f * v.size() / topk;
+    }
+    return 1.0 * sum_ratio / nq;
 }
 
 void
 ClientTest::Test() {
-    //    std::string collection_name = COLLECTION_NAME;
-    //    int64_t dim = COLLECTION_DIMENSION;
-    //    milvus::MetricType metric_type = COLLECTION_METRIC_TYPE;
-    //
-    //    std::vector<std::string> table_array;
-    //    ListCollections(table_array);
-    //
-    //    CreateCollection(collection_name);
-    //    //    GetCollectionInfo(collection_name);
-    //    GetCollectionStats(collection_name);
-    //
-    //    ListCollections(table_array);
-    //    CountEntities(collection_name);
-    //
-    //    InsertEntities(collection_name);
-    //    Flush(collection_name);
-    //    CountEntities(collection_name);
-    //    CreateIndex(collection_name, 1024);
-    //    GetCollectionInfo(collection_name);
-    //    //    GetCollectionStats(collection_name);
-    //    //
-    //    BuildVectors(NQ, COLLECTION_DIMENSION);
-    //    //    GetEntityByID(collection_name, search_id_array_);
-    //    SearchEntities(collection_name, TOP_K, NPROBE, "L2");
-    //    SearchEntities(collection_name, TOP_K, NPROBE, "IP");
-
-    /////////////////////////////////////////////////////////////////////////////
-
     std::vector<int64_t> strategy = {2, 2, 3, 1};
-    std::vector<milvus::TopKQueryResult> results;
-    int64_t topk = 250;
-    int64_t nprobe = 64;
+    std::vector<milvus::TopKQueryResult> results(4);
+    int64_t topk = 50;
+    int64_t nprobe = 12;
     float delta = 1.01;
     for (int64_t i = 0; i < strategy.size(); i++) {
-        auto result = SearchWithOpt("test_collection_1", topk, nprobe, strategy[i], delta);
+        printf("========Strategy %d==========\n", strategy[i]);
+        // double t0 = getmillisecs();
+        auto result = SearchWithOpt("test_collection", topk, nprobe, strategy[i], delta);
+	    results[i] = result;
     }
+
+    // calc recall
+    std::cout << "Recall value: " << CalcRecall(topk, results[1], results[3]) << std::endl;
 }
