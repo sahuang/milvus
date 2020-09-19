@@ -123,6 +123,10 @@ Utils::IndexTypeName(const milvus::IndexType& index_type) {
             return "RHNSWPQ";
         case milvus::IndexType::ANNOY:
             return "ANNOY";
+        case milvus::IndexType::NGTPANNG:
+            return "NGTPANNG";
+        case milvus::IndexType::NGTONNG:
+            return "NGTONNG";
         default:
             return "Unknown index type";
     }
@@ -371,14 +375,7 @@ Utils::GenDSLJson(nlohmann::json& dsl_json, nlohmann::json& vector_param_json, c
 }
 
 void
-Utils::GenBinaryDSLJson(nlohmann::json& dsl_json, nlohmann::json& vector_param_json, const std::string metric_type) {
-    uint64_t row_num = 10000;
-    std::vector<int64_t> term_value;
-    term_value.resize(row_num);
-    for (uint64_t i = 0; i < row_num; ++i) {
-        term_value[i] = i;
-    }
-
+Utils::GenPureVecDSLJson(nlohmann::json& dsl_json, nlohmann::json& vector_param_json, const std::string metric_type) {
     nlohmann::json bool_json, vector_json;
     std::string placeholder = "placeholder_1";
     vector_json["vector"] = placeholder;

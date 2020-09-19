@@ -10,6 +10,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under the License.
 
 #include "server/ValidationUtil.h"
+#include "config/ServerConfig.h"
 #include "db/Constants.h"
 #include "db/Utils.h"
 #include "knowhere/index/vector_index/ConfAdapter.h"
@@ -116,7 +117,7 @@ ValidateCollectionName(const std::string& collection_name) {
     int64_t table_name_size = collection_name.size();
     for (int64_t i = 1; i < table_name_size; ++i) {
         char name_char = collection_name[i];
-        if (name_char != '_' && std::isalnum(name_char) == 0) {
+        if (name_char != '_' && name_char != '$' && std::isalnum(name_char) == 0) {
             std::string msg = invalid_msg + "Collection name can only contain numbers, letters, and underscores.";
             LOG_SERVER_ERROR_ << msg;
             return Status(SERVER_INVALID_COLLECTION_NAME, msg);
@@ -191,6 +192,8 @@ ValidateIndexType(std::string& index_type) {
         knowhere::IndexEnum::INDEX_RHNSWFlat,
         knowhere::IndexEnum::INDEX_RHNSWPQ,
         knowhere::IndexEnum::INDEX_RHNSWSQ,
+        knowhere::IndexEnum::INDEX_NGTPANNG,
+        knowhere::IndexEnum::INDEX_NGTONNG,
 
         // structured index names
         engine::DEFAULT_STRUCTURED_INDEX,
@@ -232,12 +235,12 @@ ValidateIndexParams(const milvus::json& index_params, int64_t dimension, const s
                index_type == knowhere::IndexEnum::INDEX_FAISS_IVFSQ8 ||
                index_type == knowhere::IndexEnum::INDEX_FAISS_IVFSQ8H ||
                index_type == knowhere::IndexEnum::INDEX_FAISS_BIN_IVFFLAT) {
-        auto status = CheckParameterRange(index_params, knowhere::IndexParams::nlist, 1, 999999);
+        auto status = CheckParameterRange(index_params, knowhere::IndexParams::nlist, 1, 65536);
         if (!status.ok()) {
             return status;
         }
     } else if (index_type == knowhere::IndexEnum::INDEX_FAISS_IVFPQ) {
-        auto status = CheckParameterRange(index_params, knowhere::IndexParams::nlist, 1, 999999);
+        auto status = CheckParameterRange(index_params, knowhere::IndexParams::nlist, 1, 65536);
         if (!status.ok()) {
             return status;
         }
@@ -248,7 +251,13 @@ ValidateIndexParams(const milvus::json& index_params, int64_t dimension, const s
         }
 
         // special check for 'm' parameter
-        std::vector<int64_t> resset;
+        int64_t m_value = index_params[knowhere::IndexParams::m];
+        if (!milvus::knowhere::IVFPQConfAdapter::GetValidCPUM(dimension, m_value)) {
+            std::string msg = "Invalid m, dimension can't not be divided by m ";
+            LOG_SERVER_ERROR_ << msg;
+            return Status(SERVER_INVALID_ARGUMENT, msg);
+        }
+        /*std::vector<int64_t> resset;
         milvus::knowhere::IVFPQConfAdapter::GetValidMList(dimension, resset);
         int64_t m_value = index_params[knowhere::IndexParams::m];
         if (resset.empty()) {
@@ -270,7 +279,7 @@ ValidateIndexParams(const milvus::json& index_params, int64_t dimension, const s
 
             LOG_SERVER_ERROR_ << msg;
             return Status(SERVER_INVALID_ARGUMENT, msg);
-        }
+        }*/
     } else if (index_type == knowhere::IndexEnum::INDEX_NSG) {
         auto status = CheckParameterRange(index_params, knowhere::IndexParams::search_length, 10, 300);
         if (!status.ok()) {
@@ -307,9 +316,13 @@ ValidateIndexParams(const milvus::json& index_params, int64_t dimension, const s
             }
 
             // special check for 'PQM' parameter
-            std::vector<int64_t> resset;
-            milvus::knowhere::IVFPQConfAdapter::GetValidMList(dimension, resset);
             int64_t pqm_value = index_params[knowhere::IndexParams::PQM];
+            if (!milvus::knowhere::IVFPQConfAdapter::GetValidCPUM(dimension, pqm_value)) {
+                std::string msg = "Invalid m, dimension can't not be divided by m ";
+                LOG_SERVER_ERROR_ << msg;
+                return Status(SERVER_INVALID_ARGUMENT, msg);
+            }
+            /*int64_t pqm_value = index_params[knowhere::IndexParams::PQM];
             if (resset.empty()) {
                 std::string msg = "Invalid collection dimension, unable to get reasonable values for 'PQM'";
                 LOG_SERVER_ERROR_ << msg;
@@ -329,7 +342,7 @@ ValidateIndexParams(const milvus::json& index_params, int64_t dimension, const s
 
                 LOG_SERVER_ERROR_ << msg;
                 return Status(SERVER_INVALID_ARGUMENT, msg);
-            }
+            }*/
         }
     } else if (index_type == knowhere::IndexEnum::INDEX_ANNOY) {
         auto status = CheckParameterRange(index_params, knowhere::IndexParams::n_trees, 1, 1024);
@@ -343,9 +356,11 @@ ValidateIndexParams(const milvus::json& index_params, int64_t dimension, const s
 
 Status
 ValidateSegmentRowCount(int64_t segment_row_count) {
-    if (segment_row_count <= 0 || segment_row_count > engine::MAX_SEGMENT_ROW_COUNT) {
+    int64_t min = config.engine.build_index_threshold();
+    int max = engine::MAX_SEGMENT_ROW_COUNT;
+    if (segment_row_count < min || segment_row_count > max) {
         std::string msg = "Invalid segment row count: " + std::to_string(segment_row_count) + ". " +
-                          "Should be in range 1 ~ " + std::to_string(engine::MAX_SEGMENT_ROW_COUNT) + ".";
+                          "Should be in range " + std::to_string(min) + " ~ " + std::to_string(max) + ".";
         LOG_SERVER_ERROR_ << msg;
         return Status(SERVER_INVALID_SEGMENT_ROW_COUNT, msg);
     }
@@ -414,6 +429,40 @@ ValidateSearchTopk(int64_t top_k) {
 Status
 ValidatePartitionTags(const std::vector<std::string>& partition_tags) {
     for (const std::string& tag : partition_tags) {
+        // Partition nametag shouldn't be empty.
+        if (tag.empty()) {
+            std::string msg = "Partition tag should not be empty.";
+            LOG_SERVER_ERROR_ << msg;
+            return Status(SERVER_INVALID_PARTITION_TAG, msg);
+        }
+
+        std::string invalid_msg = "Invalid partition tag: " + tag + ". ";
+        // Partition tag size shouldn't exceed 255.
+        if (tag.size() > engine::MAX_NAME_LENGTH) {
+            std::string msg = invalid_msg + "The length of a partition tag must be less than 255 characters.";
+            LOG_SERVER_ERROR_ << msg;
+            return Status(SERVER_INVALID_PARTITION_TAG, msg);
+        }
+
+        // Partition tag first character should be underscore or character.
+        char first_char = tag[0];
+        if (first_char != '_' && std::isalnum(first_char) == 0) {
+            std::string msg = invalid_msg + "The first character of a partition tag must be an underscore or letter.";
+            LOG_SERVER_ERROR_ << msg;
+            return Status(SERVER_INVALID_PARTITION_TAG, msg);
+        }
+
+        int64_t tag_size = tag.size();
+        for (int64_t i = 1; i < tag_size; ++i) {
+            char name_char = tag[i];
+            if (name_char != '_' && name_char != '$' && std::isalnum(name_char) == 0) {
+                std::string msg = invalid_msg + "Partition tag can only contain numbers, letters, and underscores.";
+                LOG_SERVER_ERROR_ << msg;
+                return Status(SERVER_INVALID_PARTITION_TAG, msg);
+            }
+        }
+
+#if 0
         // trim side-blank of tag, only compare valid characters
         // for example: " ab cd " is treated as "ab cd"
         std::string valid_tag = tag;
@@ -431,6 +480,7 @@ ValidatePartitionTags(const std::vector<std::string>& partition_tags) {
             LOG_SERVER_ERROR_ << msg;
             return Status(SERVER_INVALID_PARTITION_TAG, msg);
         }
+#endif
     }
 
     return Status::OK();
@@ -442,6 +492,16 @@ ValidateInsertDataSize(const engine::DataChunkPtr& data) {
     if (chunk_size > engine::MAX_INSERT_DATA_SIZE) {
         std::string msg = "The amount of data inserted each time cannot exceed " +
                           std::to_string(engine::MAX_INSERT_DATA_SIZE / engine::MB) + " MB";
+        return Status(SERVER_INVALID_ROWRECORD_ARRAY, msg);
+    }
+
+    return Status::OK();
+}
+
+Status
+ValidateCompactThreshold(double threshold) {
+    if (threshold > 1.0 || threshold < 0.0) {
+        std::string msg = "Invalid compact threshold: " + std::to_string(threshold) + ". Should be in range [0.0, 1.0]";
         return Status(SERVER_INVALID_ROWRECORD_ARRAY, msg);
     }
 

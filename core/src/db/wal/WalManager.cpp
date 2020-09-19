@@ -13,6 +13,7 @@
 #include "db/Utils.h"
 #include "db/wal/WalOperationCodec.h"
 #include "utils/CommonUtil.h"
+#include "utils/Log.h"
 
 #include <map>
 #include <memory>
@@ -25,6 +26,39 @@ namespace engine {
 
 const char* WAL_MAX_OP_FILE_NAME = "max_op";
 const char* WAL_DEL_FILE_NAME = "del";
+
+namespace {
+
+bool
+StrToID(const std::string& str, idx_t& id) {
+    try {
+        id = std::stol(str);
+        return true;
+    } catch (std::exception& ex) {
+        return false;
+    }
+}
+
+void
+FindWalFiles(const std::experimental::filesystem::path& folder,
+             std::map<idx_t, std::experimental::filesystem::path>& files) {
+    using DirectoryIterator = std::experimental::filesystem::recursive_directory_iterator;
+    DirectoryIterator iter(folder);
+    DirectoryIterator end;
+    for (; iter != end; ++iter) {
+        auto path_inner = (*iter).path();
+        std::string file_name = path_inner.filename().c_str();
+        if (file_name == WAL_MAX_OP_FILE_NAME || file_name == WAL_DEL_FILE_NAME) {
+            continue;
+        }
+        idx_t op_id = 0;
+        if (StrToID(file_name, op_id)) {
+            files.insert(std::make_pair(op_id, path_inner));
+        }
+    }
+}
+
+}  // namespace
 
 WalManager::WalManager() : cleanup_thread_pool_(1, 1) {
 }
@@ -71,8 +105,8 @@ WalManager::DropCollection(const std::string& collection_name) {
     if (!path.empty()) {
         WalFile file;
         file.OpenFile(path, WalFile::OVER_WRITE);
-        bool del = true;
-        file.Write<bool>(&del);
+        idx_t op_id = id_gen_.GetNextIDNumber();
+        file.Write<idx_t>(&op_id);
 
         AddCleanupTask(collection_name);
         StartCleanupThread();
@@ -144,8 +178,14 @@ WalManager::OperationDone(const std::string& collection_name, idx_t op_id) {
 }
 
 Status
-WalManager::Recovery(const DBPtr& db) {
+WalManager::Recovery(const DBPtr& db, const CollectionMaxOpIDMap& max_op_ids) {
     WaitCleanupFinish();
+
+    if (db == nullptr) {
+        return Status(DB_ERROR, "null pointer");
+    }
+
+    LOG_ENGINE_DEBUG_ << "Begin wal recovery";
 
     try {
         using DirectoryIterator = std::experimental::filesystem::recursive_directory_iterator;
@@ -161,17 +201,7 @@ WalManager::Recovery(const DBPtr& db) {
 
             // iterate files
             std::map<idx_t, std::experimental::filesystem::path> id_files;
-            DirectoryIterator iter_inner(path_outer);
-            DirectoryIterator end_inner;
-            for (; iter_inner != end_inner; ++iter_inner) {
-                auto path_inner = (*iter_inner).path();
-                std::string file_name = path_inner.filename().c_str();
-                if (file_name == WAL_MAX_OP_FILE_NAME) {
-                    continue;
-                }
-                idx_t op_id = std::stol(file_name);
-                id_files.insert(std::make_pair(op_id, path_inner));
-            }
+            FindWalFiles(path_outer, id_files);
 
             // the max operation id
             idx_t max_op_id = 0;
@@ -180,6 +210,12 @@ WalManager::Recovery(const DBPtr& db) {
                 if (max_op_id_map_.find(collection_name) != max_op_id_map_.end()) {
                     max_op_id = max_op_id_map_[collection_name];
                 }
+            }
+
+            auto iter = max_op_ids.find(collection_name);
+            if (iter != max_op_ids.end()) {
+                idx_t outer_max_id = iter->second;
+                max_op_id = outer_max_id > max_op_id ? outer_max_id : max_op_id;
             }
 
             // id_files arrange id in assendent, we know which file should be read
@@ -206,10 +242,15 @@ WalManager::Recovery(const DBPtr& db) {
                 }
             }
         }
+
+        // flush to makesure data is serialized
+        return db->Flush();
     } catch (std::exception& ex) {
         std::string msg = "Failed to recovery wal, reason: " + std::string(ex.what());
         return Status(DB_ERROR, msg);
     }
+
+    LOG_ENGINE_DEBUG_ << "Wal recovery finished";
 
     return Status::OK();
 }
@@ -257,69 +298,43 @@ WalManager::Init() {
 
 Status
 WalManager::RecordInsertOperation(const InsertEntityOperationPtr& operation, const DBPtr& db) {
-    std::vector<DataChunkPtr> chunks;
-    SplitChunk(operation->data_chunk_, chunks);
+    idx_t op_id = id_gen_.GetNextIDNumber();
 
-    IDNumbers op_ids;
-    auto status = id_gen_.GetNextIDNumbers(chunks.size(), op_ids);
-    if (!status.ok()) {
-        return status;
-    }
+    DataChunkPtr& chunk = operation->data_chunk_;
+    int64_t chunk_size = utils::GetSizeOfChunk(chunk);
 
-    for (size_t i = 0; i < chunks.size(); ++i) {
-        idx_t op_id = op_ids[i];
-        DataChunkPtr& chunk = chunks[i];
-        int64_t chunk_size = utils::GetSizeOfChunk(chunk);
-
-        try {
-            // open wal file
-            std::string path = ConstructFilePath(operation->collection_name_, std::to_string(op_id));
-            if (!path.empty()) {
-                std::lock_guard<std::mutex> lock(file_map_mutex_);
-                WalFilePtr file = file_map_[operation->collection_name_];
-                if (file == nullptr) {
-                    file = std::make_shared<WalFile>();
-                    file_map_[operation->collection_name_] = file;
-                    file->OpenFile(path, WalFile::APPEND_WRITE);
-                } else if (!file->IsOpened() || file->ExceedMaxSize(chunk_size)) {
-                    file->OpenFile(path, WalFile::APPEND_WRITE);
-                }
-
-                // write to wal file
-                status = WalOperationCodec::WriteInsertOperation(file, operation->partition_name, chunk, op_id);
-                if (!status.ok()) {
-                    return status;
-                }
+    try {
+        // open wal file
+        std::string path = ConstructFilePath(operation->collection_name_, std::to_string(op_id));
+        if (!path.empty()) {
+            std::lock_guard<std::mutex> lock(file_map_mutex_);
+            WalFilePtr file = file_map_[operation->collection_name_];
+            if (file == nullptr) {
+                file = std::make_shared<WalFile>();
+                file_map_[operation->collection_name_] = file;
+                file->OpenFile(path, WalFile::APPEND_WRITE);
+            } else if (!file->IsOpened() || file->ExceedMaxSize(chunk_size)) {
+                file->OpenFile(path, WalFile::APPEND_WRITE);
             }
-        } catch (std::exception& ex) {
-            std::string msg = "Failed to record insert operation, reason: " + std::string(ex.what());
-            return Status(DB_ERROR, msg);
-        }
 
-        // insert action to db
-        if (db) {
-            status = db->Insert(operation->collection_name_, operation->partition_name, operation->data_chunk_, op_id);
+            // write to wal file
+            auto status = WalOperationCodec::WriteInsertOperation(file, operation->partition_name, chunk, op_id);
             if (!status.ok()) {
                 return status;
             }
         }
+    } catch (std::exception& ex) {
+        std::string msg = "Failed to record insert operation, reason: " + std::string(ex.what());
+        return Status(DB_ERROR, msg);
     }
 
-    return Status::OK();
-}
-
-Status
-WalManager::SplitChunk(const DataChunkPtr& chunk, std::vector<DataChunkPtr>& chunks) {
-    //    int64_t chunk_size = utils::GetSizeOfChunk(chunk);
-    //    if (chunk_size > insert_buffer_size_) {
-    //        int64_t batch = chunk_size / insert_buffer_size_;
-    //        int64_t batch_count = chunk->count_ / batch;
-    //        for (int64_t i = 0; i <= batch; ++i) {
-    //        }
-    //    } else {
-    //        chunks.push_back(chunk);
-    //    }
-    chunks.push_back(chunk);
+    // insert action to db
+    if (db) {
+        auto status = db->Insert(operation->collection_name_, operation->partition_name, operation->data_chunk_, op_id);
+        if (!status.ok()) {
+            return status;
+        }
+    }
 
     return Status::OK();
 }
@@ -367,7 +382,6 @@ WalManager::ConstructFilePath(const std::string& collection_name, const std::str
     // typically, the wal file path is like: /xxx/milvus/wal/[collection_name]/xxxxxxxxxx
     std::experimental::filesystem::path full_path(wal_path_);
     full_path.append(collection_name);
-    std::experimental::filesystem::create_directory(full_path);
     full_path.append(file_name);
 
     std::string path(full_path.c_str());
@@ -456,10 +470,11 @@ WalManager::CleanupThread() {
             {
                 std::lock_guard<std::mutex> lock(file_map_mutex_);
                 file_map_.erase(target_collection);
-            }
 
-            // remove collection folder
-            std::experimental::filesystem::remove_all(collection_path);
+                // remove collection folder
+                // do this under the lock to avoid multi-thread conflict
+                std::experimental::filesystem::remove_all(collection_path);
+            }
 
             TakeCleanupTask(target_collection);
             continue;
@@ -476,17 +491,7 @@ WalManager::CleanupThread() {
 
         // iterate files
         std::map<idx_t, std::experimental::filesystem::path> wal_files;
-        DirectoryIterator file_iter(collection_path);
-        DirectoryIterator end_iter;
-        for (; file_iter != end_iter; ++file_iter) {
-            auto file_path = (*file_iter).path();
-            std::string file_name = file_path.filename().c_str();
-            if (file_name == WAL_MAX_OP_FILE_NAME) {
-                continue;
-            }
-            idx_t op_id = std::stol(file_name);
-            wal_files.insert(std::make_pair(op_id, file_path));
-        }
+        FindWalFiles(collection_path, wal_files);
 
         // no wal file
         if (wal_files.empty()) {

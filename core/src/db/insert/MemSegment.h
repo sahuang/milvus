@@ -52,13 +52,18 @@ class MemSegment {
         return current_mem_;
     }
 
+    int64_t
+    GetCurrentRowCount() const {
+        return total_row_count_;
+    }
+
     Status
     Serialize();
 
  private:
     Status
     CreateNewSegment(snapshot::ScopedSnapshotT& ss, std::shared_ptr<snapshot::NewSegmentOperation>& operation,
-                     segment::SegmentWriterPtr& writer);
+                     segment::SegmentWriterPtr& writer, idx_t max_op_id);
 
     Status
     ApplyDeleteToMem();
@@ -75,6 +80,8 @@ class MemSegment {
 
     using ActionArray = std::vector<MemAction>;
     ActionArray actions_;  // the actions array mekesure insert/delete actions executed one by one
+
+    int64_t total_row_count_ = 0;
 };
 
 using MemSegmentPtr = std::shared_ptr<MemSegment>;

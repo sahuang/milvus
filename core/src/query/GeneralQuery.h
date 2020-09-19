@@ -70,6 +70,7 @@ struct RangeQuery {
 using RangeQueryPtr = std::shared_ptr<RangeQuery>;
 
 struct VectorRecord {
+    size_t vector_count;
     std::vector<float> float_data;
     std::vector<uint8_t> binary_data;
 };
@@ -123,6 +124,7 @@ struct Query {
 
     int strategy = 0;
     float delta = 2.0f;
+    std::string index_type;
 };
 using QueryPtr = std::shared_ptr<Query>;
 

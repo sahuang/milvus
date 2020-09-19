@@ -11,7 +11,7 @@ index_file_size = 10
 COMPACT_TIMEOUT = 180
 nprobe = 1
 top_k = 1
-tag = "1970-01-01"
+tag = "1970_01_01"
 nb = 6000
 nq = 2
 segment_row_count = 5000
@@ -157,14 +157,14 @@ class TestCompactBase:
         # get collection info before compact
         info = connect.get_collection_stats(collection)
         logging.getLogger().info(info["partitions"])
-        size_before = info["partitions"][0]["segments"][0]["data_size"]
+        size_before = info["partitions"][0]["data_size"]
         logging.getLogger().info(size_before)
         status = connect.compact(collection)
         assert status.OK()
         # get collection info after compact
         info = connect.get_collection_stats(collection)
         logging.getLogger().info(info["partitions"])
-        size_after = info["partitions"][0]["segments"][0]["data_size"]
+        size_after = info["partitions"][0]["data_size"]
         logging.getLogger().info(size_after)
         assert(size_before >= size_after)
     
@@ -191,6 +191,8 @@ class TestCompactBase:
         logging.getLogger().info(info["partitions"])
         assert not info["partitions"][0]["segments"]
 
+    # TODO: enable
+    @pytest.mark.level(2)
     @pytest.mark.timeout(COMPACT_TIMEOUT)
     def test_insert_partition_delete_half_and_compact(self, connect, collection):
         '''
@@ -301,18 +303,18 @@ class TestCompactBase:
         connect.flush([collection])
         # get collection info before compact
         info = connect.get_collection_stats(collection)
-        size_before = info["partitions"][0]["segments"][0]["data_size"]
+        size_before = info["partitions"][0]["data_size"]
         status = connect.compact(collection)
         assert status.OK()
         # get collection info after compact
         info = connect.get_collection_stats(collection)
-        size_after = info["partitions"][0]["segments"][0]["data_size"]
+        size_after = info["partitions"][0]["data_size"]
         assert(size_before >= size_after)
         status = connect.compact(collection)
         assert status.OK()
         # get collection info after compact twice
         info = connect.get_collection_stats(collection)
-        size_after_twice = info["partitions"][0]["segments"][0]["data_size"]
+        size_after_twice = info["partitions"][0]["data_size"]
         assert(size_after == size_after_twice)
 
     @pytest.mark.timeout(COMPACT_TIMEOUT)
@@ -482,14 +484,14 @@ class TestCompactBinary:
         # get collection info before compact
         info = connect.get_collection_stats(binary_collection)
         logging.getLogger().info(info["partitions"])
-        size_before = info["partitions"][0]["segments"][0]["data_size"]
+        size_before = info["partitions"][0]["data_size"]
         logging.getLogger().info(size_before)
         status = connect.compact(binary_collection)
         assert status.OK()
         # get collection info after compact
         info = connect.get_collection_stats(binary_collection)
         logging.getLogger().info(info["partitions"])
-        size_after = info["partitions"][0]["segments"][0]["data_size"]
+        size_after = info["partitions"][0]["data_size"]
         logging.getLogger().info(size_after)
         assert(size_before >= size_after)
     
@@ -559,18 +561,18 @@ class TestCompactBinary:
         connect.flush([binary_collection])
         # get collection info before compact
         info = connect.get_collection_stats(binary_collection)
-        size_before = info["partitions"][0]["segments"][0]["data_size"]
+        size_before = info["partitions"][0]["data_size"]
         status = connect.compact(binary_collection)
         assert status.OK()
         # get collection info after compact
         info = connect.get_collection_stats(binary_collection)
-        size_after = info["partitions"][0]["segments"][0]["data_size"]
+        size_after = info["partitions"][0]["data_size"]
         assert(size_before >= size_after)
         status = connect.compact(binary_collection)
         assert status.OK()
         # get collection info after compact twice
         info = connect.get_collection_stats(binary_collection)
-        size_after_twice = info["partitions"][0]["segments"][0]["data_size"]
+        size_after_twice = info["partitions"][0]["data_size"]
         assert(size_after == size_after_twice)
 
     @pytest.mark.timeout(COMPACT_TIMEOUT)

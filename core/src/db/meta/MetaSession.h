@@ -127,8 +127,18 @@ MetaSession::Select(const std::string& field, const std::vector<U>& values,
     for (auto raw : attrs) {
         auto resource = snapshot::CreateResPtr<T>();
         std::unordered_map<std::string, std::string>::iterator iter;
-        auto mf_p = std::dynamic_pointer_cast<snapshot::MappingsField>(resource);
-        if (mf_p != nullptr) {
+
+        if (auto mf_p = std::dynamic_pointer_cast<snapshot::FlushableMappingsField>(resource)) {
+            iter = raw.find(F_MAPPINGS);
+            if (iter != raw.end()) {
+                auto mapping_json = nlohmann::json::parse(iter->second);
+                std::set<int64_t> mappings;
+                for (auto& ele : mapping_json) {
+                    mappings.insert(ele.get<int64_t>());
+                }
+                mf_p->GetFlushIds() = mappings;
+            }
+        } else if (auto mf_p = std::dynamic_pointer_cast<snapshot::MappingsField>(resource)) {
             iter = raw.find(F_MAPPINGS);
             if (iter != raw.end()) {
                 auto mapping_json = nlohmann::json::parse(iter->second);
@@ -301,7 +311,7 @@ MetaSession::Select(const std::string& field, const std::vector<U>& values,
         if (size_p != nullptr) {
             iter = raw.find(F_SIZE);
             if (iter != raw.end()) {
-                auto size = std::stol(iter->second);
+                uint64_t size = std::stoul(iter->second);
                 size_p->SetSize(size);
             }
         }
@@ -310,7 +320,7 @@ MetaSession::Select(const std::string& field, const std::vector<U>& values,
         if (rc_p != nullptr) {
             iter = raw.find(F_ROW_COUNT);
             if (iter != raw.end()) {
-                auto rc = std::stol(iter->second);
+                uint64_t rc = std::stoul(iter->second);
                 rc_p->SetRowCount(rc);
             }
         }

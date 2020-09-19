@@ -11,12 +11,36 @@
 
 #include "db/wal/WalProxy.h"
 #include "config/ServerConfig.h"
+#include "db/SnapshotUtils.h"
+#include "db/Utils.h"
+#include "db/snapshot/Snapshots.h"
 #include "db/wal/WalManager.h"
 #include "db/wal/WalOperation.h"
 #include "utils/Exception.h"
 
+#include <utility>
+
 namespace milvus {
 namespace engine {
+
+namespace {
+
+Status
+CollectMaxOpIDFromMeta(CollectionMaxOpIDMap& max_op_ids) {
+    std::vector<std::string> collection_names;
+    snapshot::Snapshots::GetInstance().GetCollectionNames(collection_names);
+    for (auto& collection_name : collection_names) {
+        snapshot::ScopedSnapshotT ss;
+        auto status = snapshot::Snapshots::GetInstance().GetSnapshot(ss, collection_name);
+        if (status.ok()) {
+            max_op_ids.insert(std::make_pair(collection_name, ss->GetMaxLsn()));
+        }
+    }
+
+    return Status::OK();
+}
+
+}  // namespace
 
 WalProxy::WalProxy(const DBPtr& db, const DBOptions& options) : DBProxy(db, options) {
     // db must implemented
@@ -35,7 +59,10 @@ WalProxy::Start() {
 
     if (options_.wal_enable_) {
         WalManager::GetInstance().Start(options_);
-        WalManager::GetInstance().Recovery(db_);
+
+        CollectionMaxOpIDMap max_op_ids;
+        CollectMaxOpIDFromMeta(max_op_ids);
+        WalManager::GetInstance().Recovery(db_, max_op_ids);
     }
 
     return status;
@@ -54,20 +81,56 @@ WalProxy::Stop() {
 
 Status
 WalProxy::DropCollection(const std::string& collection_name) {
-    WalManager::GetInstance().DropCollection(collection_name);
-    return db_->DropCollection(collection_name);
+    auto status = db_->DropCollection(collection_name);
+    if (status.ok()) {
+        WalManager::GetInstance().DropCollection(collection_name);
+    }
+
+    return status;
 }
 
 Status
 WalProxy::Insert(const std::string& collection_name, const std::string& partition_name, DataChunkPtr& data_chunk,
                  idx_t op_id) {
-    // write operation into disk
-    InsertEntityOperationPtr op = std::make_shared<InsertEntityOperation>();
-    op->collection_name_ = collection_name;
-    op->partition_name = partition_name;
-    op->data_chunk_ = data_chunk;
+    // get segment row count of this collection
+    int64_t row_count_per_segment = DEFAULT_SEGMENT_ROW_COUNT;
+    GetSegmentRowCount(collection_name, row_count_per_segment);
 
-    return WalManager::GetInstance().RecordOperation(op, db_);
+    // split chunk accordding to segment row count
+    std::vector<DataChunkPtr> chunks;
+    STATUS_CHECK(utils::SplitChunk(data_chunk, row_count_per_segment, chunks));
+    if (chunks.size() > 0 && data_chunk != chunks[0]) {
+        // data has been copied to new chunk, do this to free memory
+        data_chunk->fixed_fields_.clear();
+        data_chunk->variable_fields_.clear();
+        data_chunk->count_ = 0;
+    }
+
+    // write operation into wal file, and insert to memory
+    for (auto& chunk : chunks) {
+        InsertEntityOperationPtr op = std::make_shared<InsertEntityOperation>();
+        op->collection_name_ = collection_name;
+        op->partition_name = partition_name;
+        op->data_chunk_ = chunk;
+        STATUS_CHECK(WalManager::GetInstance().RecordOperation(op, db_));
+    }
+
+    // return id field
+    if (chunks.size() > 0 && data_chunk != chunks[0]) {
+        int64_t row_count = 0;
+        BinaryDataPtr id_data = std::make_shared<BinaryData>();
+        for (auto& chunk : chunks) {
+            auto iter = chunk->fixed_fields_.find(engine::FIELD_UID);
+            if (iter != chunk->fixed_fields_.end()) {
+                id_data->data_.insert(id_data->data_.end(), iter->second->data_.begin(), iter->second->data_.end());
+                row_count += chunk->count_;
+            }
+        }
+        data_chunk->count_ = row_count;
+        data_chunk->fixed_fields_[engine::FIELD_UID] = id_data;
+    }
+
+    return Status::OK();
 }
 
 Status

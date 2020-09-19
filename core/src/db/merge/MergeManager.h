@@ -24,19 +24,25 @@ namespace milvus {
 namespace engine {
 
 // 1. SIMPLE
-//    merge in old way, merge files one by one, stop merge until file size exceed index_file_size
+//    merge in old way, merge segment one by one, stop merge until segment row count exceed segment_row_count
 // 2. LAYERED
-//    distribute files to several groups according to file size
-//    firstly, define layers by file size: 4MB, 16MB, 64MB, 256MB, 1024MB
-//    if file size between 0MB~4MB, put it into layer "4"
-//    if file size between 4MB~16MB, put it into layer "16"
-//    if file size between 16MB~64MB, put it into layer "64"
-//    if file size between 64MB~256MB, put it into layer "256"
-//    if file size between 256MB~1024MB, put it into layer "1024"
-//    secondly, merge files for each group
-//    third, if some file's create time is 30 seconds ago, and it still un-merged, force merge with upper layer files
+//    distribute segments to several groups according to segment_row_count
+//    assume segment_row_count = 100000
+//    firstly, define layers by row count: 100000, 20000, 4000
+//    if segment row count between 0~4000, put it into layer "4000"
+//    if segment row count between 4000~20000, put it into layer "20000"
+//    if segment row count between 20000~100000, put it into layer "100000"
+//    segment row count greater than 100000 will be ignored
+//    secondly, merge segments for each group
+//    third, if some segment's create time is 30 seconds ago, and it still un-merged, force merge with upper layer
 // 3. ADAPTIVE
-//    Pick files that sum of size is close to index_file_size, merge them
+//    merge segments to fit the segment_row_count
+//    assume segment_row_count = 100000
+//    segment_1 row count = 80000
+//    segment_2 row count = 60000
+//    segment_3 row count = 30000
+//    segment_1 and segment_3 will be merged, since there row sum = 110000,
+//    that is much closer than row sum of segment_1 and segment_2, 140000
 enum class MergeStrategyType {
     SIMPLE = 1,
     LAYERED = 2,
@@ -46,7 +52,7 @@ enum class MergeStrategyType {
 class MergeManager {
  public:
     virtual Status
-    MergeFiles(int64_t collection_id, MergeStrategyType type = MergeStrategyType::SIMPLE) = 0;
+    MergeSegments(int64_t collection_id, MergeStrategyType type = MergeStrategyType::LAYERED) = 0;
 };  // MergeManager
 
 using MergeManagerPtr = std::shared_ptr<MergeManager>;

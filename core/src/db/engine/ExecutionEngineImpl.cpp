@@ -45,7 +45,6 @@
 #ifdef MILVUS_GPU_VERSION
 #include "knowhere/index/vector_index/gpu/GPUIndex.h"
 #include "knowhere/index/vector_index/gpu/IndexIVFSQHybrid.h"
-#include "knowhere/index/vector_index/gpu/Quantizer.h"
 #include "knowhere/index/vector_index/helpers/Cloner.h"
 #endif
 
@@ -72,15 +71,8 @@ ExecutionEngineImpl::ExecutionEngineImpl(const std::string& dir_root, const Segm
 }
 
 knowhere::VecIndexPtr
-ExecutionEngineImpl::CreateVecIndex(const std::string& index_name) {
+ExecutionEngineImpl::CreateVecIndex(const std::string& index_name, knowhere::IndexMode mode) {
     knowhere::VecIndexFactory& vec_index_factory = knowhere::VecIndexFactory::GetInstance();
-    knowhere::IndexMode mode = knowhere::IndexMode::MODE_CPU;
-#ifdef MILVUS_GPU_VERSION
-    if (gpu_enable_) {
-        mode = knowhere::IndexMode::MODE_GPU;
-    }
-#endif
-
     knowhere::VecIndexPtr index = vec_index_factory.CreateVecIndex(index_name, mode);
     if (index == nullptr) {
         std::string err_msg =
@@ -231,7 +223,11 @@ ExecutionEngineImpl::CopyToGpu(uint64_t device_id) {
     for (auto& pair : indice) {
         if (pair.second != nullptr) {
             auto gpu_index = knowhere::cloner::CopyCpuToGpu(pair.second, device_id, knowhere::Config());
-            new_map.insert(std::make_pair(pair.first, gpu_index));
+            if (gpu_index == nullptr) {
+                new_map.insert(pair);
+            } else {
+                new_map.insert(std::make_pair(pair.first, gpu_index));
+            }
         }
     }
 
@@ -268,7 +264,7 @@ Status
 ExecutionEngineImpl::VecSearch(milvus::engine::ExecutionEngineContext& context,
                                const query::VectorQueryPtr& vector_param, knowhere::VecIndexPtr& vec_index,
                                bool hybrid) {
-    TimeRecorder rc(LogOut("[%s][%ld] ExecutionEngineImpl::Search", "search", 0));
+    TimeRecorder rc(LogOut("[%s][%ld] ExecutionEngineImpl::VecSearch", "search", 0));
 
     if (vec_index == nullptr) {
         LOG_ENGINE_ERROR_ << LogOut("[%s][%ld] ExecutionEngineImpl: index is null, failed to search", "search", 0);
@@ -311,6 +307,7 @@ ExecutionEngineImpl::VecSearch(milvus::engine::ExecutionEngineContext& context,
     if (hybrid) {
         //        HybridUnset();
     }
+    rc.ElapseFromBegin("done");
 
     return Status::OK();
 }
@@ -416,10 +413,11 @@ ExecutionEngineImpl::VecSearchWithFlat(ExecutionEngineContext& context, const qu
 
 Status
 ExecutionEngineImpl::Search(ExecutionEngineContext& context) {
+    TimeRecorder rc(LogOut("[%s][%ld] ExecutionEngineImpl::Search", "search", 0));
     try {
-        faiss::ConcurrentBitsetPtr bitset;
+        ConCurrentBitsetPtr bitset;
         std::string vector_placeholder;
-        faiss::ConcurrentBitsetPtr list;
+        ConCurrentBitsetPtr list;
 
         SegmentPtr segment_ptr;
         segment_reader_->GetSegment(segment_ptr);
@@ -449,6 +447,7 @@ ExecutionEngineImpl::Search(ExecutionEngineContext& context) {
         if (!status.ok()) {
             return status;
         }
+        rc.RecordSection("Scalar field filtering");
 
         // Do And
         for (int64_t i = 0; i < entity_count_; i++) {
@@ -472,7 +471,7 @@ ExecutionEngineImpl::Search(ExecutionEngineContext& context) {
     } catch (std::exception& exception) {
         return Status{DB_ERROR, "Illegal search params"};
     }
-
+    rc.ElapseFromBegin("done");
     return Status::OK();
 }
 
@@ -866,7 +865,7 @@ ExecutionEngineImpl::ExecBinaryQuery(const milvus::query::GeneralQueryPtr& gener
                                      std::string& vector_placeholder) {
     Status status = Status::OK();
     if (general_query->leaf == nullptr) {
-        faiss::ConcurrentBitsetPtr left_bitset, right_bitset;
+        ConCurrentBitsetPtr left_bitset, right_bitset;
         if (general_query->bin->left_query != nullptr) {
             status = ExecBinaryQuery(general_query->bin->left_query, left_bitset, attr_type, vector_placeholder);
             if (!status.ok()) {
@@ -912,16 +911,16 @@ ExecutionEngineImpl::ExecBinaryQuery(const milvus::query::GeneralQueryPtr& gener
         return status;
     } else {
         if (general_query->leaf->term_query != nullptr) {
-            bitset = std::make_shared<faiss::ConcurrentBitset>(entity_count_);
+            bitset = std::make_shared<ConCurrentBitset>(entity_count_);
             STATUS_CHECK(ProcessTermQuery(bitset, general_query->leaf->term_query, attr_type));
         }
         if (general_query->leaf->range_query != nullptr) {
-            bitset = std::make_shared<faiss::ConcurrentBitset>(entity_count_);
+            bitset = std::make_shared<ConCurrentBitset>(entity_count_);
             STATUS_CHECK(ProcessRangeQuery(attr_type, bitset, general_query->leaf->range_query));
         }
         if (!general_query->leaf->vector_placeholder.empty()) {
             // skip vector query
-            bitset = std::make_shared<faiss::ConcurrentBitset>(entity_count_, 255);
+            bitset = std::make_shared<ConCurrentBitset>(entity_count_, 255);
             vector_placeholder = general_query->leaf->vector_placeholder;
         }
     }
@@ -930,8 +929,7 @@ ExecutionEngineImpl::ExecBinaryQuery(const milvus::query::GeneralQueryPtr& gener
 
 template <typename T>
 Status
-ProcessIndexedTermQuery(faiss::ConcurrentBitsetPtr& bitset, knowhere::IndexPtr& index_ptr,
-                        milvus::json& term_values_json) {
+ProcessIndexedTermQuery(ConCurrentBitsetPtr& bitset, knowhere::IndexPtr& index_ptr, milvus::json& term_values_json) {
     try {
         auto T_index = std::dynamic_pointer_cast<knowhere::StructuredIndexSort<T>>(index_ptr);
         if (not T_index) {
@@ -953,7 +951,7 @@ ProcessIndexedTermQuery(faiss::ConcurrentBitsetPtr& bitset, knowhere::IndexPtr& 
 }
 
 Status
-ExecutionEngineImpl::IndexedTermQuery(faiss::ConcurrentBitsetPtr& bitset, const std::string& field_name,
+ExecutionEngineImpl::IndexedTermQuery(ConCurrentBitsetPtr& bitset, const std::string& field_name,
                                       const DataType& data_type, milvus::json& term_values_json) {
     SegmentPtr segment_ptr;
     segment_reader_->GetSegment(segment_ptr);
@@ -993,7 +991,7 @@ ExecutionEngineImpl::IndexedTermQuery(faiss::ConcurrentBitsetPtr& bitset, const 
 }
 
 Status
-ExecutionEngineImpl::ProcessTermQuery(faiss::ConcurrentBitsetPtr& bitset, const query::TermQueryPtr& term_query,
+ExecutionEngineImpl::ProcessTermQuery(ConCurrentBitsetPtr& bitset, const query::TermQueryPtr& term_query,
                                       std::unordered_map<std::string, DataType>& attr_type) {
     try {
         auto term_query_json = term_query->json_obj;
@@ -1020,8 +1018,7 @@ ExecutionEngineImpl::ProcessTermQuery(faiss::ConcurrentBitsetPtr& bitset, const 
 
 template <typename T>
 Status
-ProcessIndexedRangeQuery(faiss::ConcurrentBitsetPtr& bitset, knowhere::IndexPtr& index_ptr,
-                         milvus::json& range_values_json) {
+ProcessIndexedRangeQuery(ConCurrentBitsetPtr& bitset, knowhere::IndexPtr& index_ptr, milvus::json& range_values_json) {
     try {
         auto T_index = std::dynamic_pointer_cast<knowhere::StructuredIndexSort<T>>(index_ptr);
 
@@ -1043,7 +1040,7 @@ ProcessIndexedRangeQuery(faiss::ConcurrentBitsetPtr& bitset, knowhere::IndexPtr&
 }
 
 Status
-ExecutionEngineImpl::IndexedRangeQuery(faiss::ConcurrentBitsetPtr& bitset, const DataType& data_type,
+ExecutionEngineImpl::IndexedRangeQuery(ConCurrentBitsetPtr& bitset, const DataType& data_type,
                                        knowhere::IndexPtr& index_ptr, milvus::json& range_values_json) {
     auto status = Status::OK();
     switch (data_type) {
@@ -1079,7 +1076,7 @@ ExecutionEngineImpl::IndexedRangeQuery(faiss::ConcurrentBitsetPtr& bitset, const
 
 Status
 ExecutionEngineImpl::ProcessRangeQuery(const std::unordered_map<std::string, DataType>& attr_type,
-                                       faiss::ConcurrentBitsetPtr& bitset, const query::RangeQueryPtr& range_query) {
+                                       ConCurrentBitsetPtr& bitset, const query::RangeQueryPtr& range_query) {
     SegmentPtr segment_ptr;
     segment_reader_->GetSegment(segment_ptr);
     try {
@@ -1311,12 +1308,6 @@ ExecutionEngineImpl::BuildKnowhereIndex(const std::string& field_name, const Col
         throw Exception(DB_ERROR, "ExecutionEngineImpl: from_index is not IDMAP");
     }
 
-    // build index by knowhere
-    new_index = CreateVecIndex(index_info.index_type_);
-    if (!new_index) {
-        throw Exception(DB_ERROR, "Unsupported index type");
-    }
-
     auto segment_visitor = segment_reader_->GetSegmentVisitor();
     auto& snapshot = segment_visitor->GetSnapshot();
     auto& segment = segment_visitor->GetSegment();
@@ -1335,14 +1326,30 @@ ExecutionEngineImpl::BuildKnowhereIndex(const std::string& field_name, const Col
     conf[knowhere::meta::DEVICEID] = gpu_num_;
     conf[knowhere::Metric::TYPE] = index_info.metric_name_;
     LOG_ENGINE_DEBUG_ << "Index params: " << conf.dump();
-    auto adapter = knowhere::AdapterMgr::GetInstance().GetAdapter(new_index->index_type());
-    if (!adapter->CheckTrain(conf, new_index->index_mode())) {
+
+    knowhere::IndexMode mode = knowhere::IndexMode::MODE_CPU;
+#ifdef MILVUS_GPU_VERSION
+    if (gpu_enable_) {
+        mode = knowhere::IndexMode::MODE_GPU;
+    }
+    if (index_info.index_type_ == milvus::knowhere::IndexEnum::INDEX_FAISS_IVFPQ) {
+        auto m = conf[knowhere::IndexParams::m].get<int64_t>();
+        knowhere::IVFPQConfAdapter::GetValidM(dimension, m, mode);
+    }
+#endif
+    auto adapter = knowhere::AdapterMgr::GetInstance().GetAdapter(index_info.index_type_);
+    if (!adapter->CheckTrain(conf, mode)) {
         throw Exception(DB_ERROR, "Illegal index params");
+    }
+    // build index by knowhere
+    new_index = CreateVecIndex(index_info.index_type_, mode);
+    if (!new_index) {
+        throw Exception(DB_ERROR, "Unsupported index type");
     }
     LOG_ENGINE_DEBUG_ << "Index config: " << conf.dump();
 
     std::vector<idx_t> uids;
-    faiss::ConcurrentBitsetPtr blacklist;
+    ConCurrentBitsetPtr blacklist;
     knowhere::DatasetPtr dataset;
     if (from_index) {
         dataset =

@@ -26,6 +26,7 @@ jobs:
   ubuntu:
     name: AMD64 Ubuntu ${{ matrix.ubuntu }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -50,6 +51,12 @@ jobs:
         run: |
           docker-compose build ubuntu-core
           docker rmi $(docker images | grep '<none>' | awk '{print $3}') || exit 0
+      - name: Cache Docker Volumes
+        uses: actions/cache@v1
+        with:
+          path: .docker
+          key: ubuntu${{ matrix.ubuntu }}-${{ hashFiles('core/**') }}
+          restore-keys: ubuntu${{ matrix.ubuntu }}-
       - name: Docker Run
         run: |
           docker-compose run ubuntu-core
@@ -73,6 +80,7 @@ jobs:
   centos:
     name: AMD64 CentOS ${{ matrix.centos }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -96,6 +104,12 @@ jobs:
         run: |
           docker-compose build centos-core
           docker rmi $(docker images | grep '<none>' | awk '{print $3}') || exit 0
+      - name: Cache Docker Volumes
+        uses: actions/cache@v1
+        with:
+          path: .docker
+          key: centos${{ matrix.centos }}-${{ hashFiles('core/**') }}
+          restore-keys: centos${{ matrix.centos }}-
       - name: Docker Run
         run: |
           docker-compose run centos-core

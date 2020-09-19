@@ -13,6 +13,7 @@
 
 #include <fiu/fiu-local.h>
 
+#include <src/index/thirdparty/faiss/IndexFlat.h>
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -130,7 +131,7 @@ SearchTask::OnExecute() {
             LOG_ENGINE_WARNING_ << LogOut("[%s][%ld] Searching in an empty segment. segment id = %d", "search", 0,
                                           segment_ptr->GetID());
         } else {
-            //            std::unique_lock<std::mutex> lock(search_job->mutex());
+            std::unique_lock<std::mutex> lock(search_job->mutex());
             if (!search_job->query_result()) {
                 search_job->query_result() = std::make_shared<engine::QueryResult>();
                 search_job->query_result()->row_num_ = nq;
@@ -140,7 +141,13 @@ SearchTask::OnExecute() {
             }
             SearchTask::MergeTopkToResultSet(context.query_result_->result_ids_,
                                              context.query_result_->result_distances_, spec_k, nq, topk,
-                                             ascending_reduce_, search_job->query_result());
+                                             ascending_reduce_, search_job->query_result()->result_ids_,
+                                             search_job->query_result()->result_distances_);
+
+            LOG_ENGINE_DEBUG_ << "Merged result: "
+                              << "nq = " << nq << ", topk = " << topk
+                              << ", len of ids = " << context.query_result_->result_ids_.size()
+                              << ", len of distance = " << context.query_result_->result_distances_.size();
         }
 
         rc.RecordSection("reduce topk done");
@@ -155,17 +162,19 @@ SearchTask::OnExecute() {
 
 void
 SearchTask::MergeTopkToResultSet(const engine::ResultIds& src_ids, const engine::ResultDistances& src_distances,
-                                 size_t src_k, size_t nq, size_t topk, bool ascending, engine::QueryResultPtr& result) {
+                                 size_t src_k, size_t nq, size_t topk, bool ascending, engine::ResultIds& tar_ids,
+                                 engine::ResultDistances& tar_distances) {
     if (src_ids.empty()) {
         LOG_ENGINE_DEBUG_ << LogOut("[%s][%d] Search result is empty.", "search", 0);
         return;
     }
 
-    size_t tar_k = result->result_ids_.size() / nq;
+    size_t tar_k = tar_ids.size() / nq;
     size_t buf_k = std::min(topk, src_k + tar_k);
 
     engine::ResultIds buf_ids(nq * buf_k, -1);
     engine::ResultDistances buf_distances(nq * buf_k, 0.0);
+
     for (uint64_t i = 0; i < nq; i++) {
         size_t buf_k_j = 0, src_k_j = 0, tar_k_j = 0;
         size_t buf_idx, src_idx, tar_idx;
@@ -179,15 +188,15 @@ SearchTask::MergeTopkToResultSet(const engine::ResultIds& src_ids, const engine:
             tar_idx = tar_k_multi_i + tar_k_j;
             buf_idx = buf_k_multi_i + buf_k_j;
 
-            if ((result->result_ids_[tar_idx] == -1) ||  // initialized value
-                (ascending && src_distances[src_idx] < result->result_distances_[tar_idx]) ||
-                (!ascending && src_distances[src_idx] > result->result_distances_[tar_idx])) {
+            if ((tar_ids[tar_idx] == -1) ||  // initialized value
+                (ascending && src_distances[src_idx] < tar_distances[tar_idx]) ||
+                (!ascending && src_distances[src_idx] > tar_distances[tar_idx])) {
                 buf_ids[buf_idx] = src_ids[src_idx];
                 buf_distances[buf_idx] = src_distances[src_idx];
                 src_k_j++;
             } else {
-                buf_ids[buf_idx] = result->result_ids_[tar_idx];
-                buf_distances[buf_idx] = result->result_distances_[tar_idx];
+                buf_ids[buf_idx] = tar_ids[tar_idx];
+                buf_distances[buf_idx] = tar_distances[tar_idx];
                 tar_k_j++;
             }
             buf_k_j++;
@@ -207,21 +216,82 @@ SearchTask::MergeTopkToResultSet(const engine::ResultIds& src_ids, const engine:
                 while (buf_k_j < buf_k && tar_k_j < tar_k) {
                     buf_idx = buf_k_multi_i + buf_k_j;
                     tar_idx = tar_k_multi_i + tar_k_j;
-                    buf_ids[buf_idx] = result->result_ids_[tar_idx];
-                    buf_distances[buf_idx] = result->result_distances_[tar_idx];
+                    buf_ids[buf_idx] = tar_ids[tar_idx];
+                    buf_distances[buf_idx] = tar_distances[tar_idx];
                     tar_k_j++;
                     buf_k_j++;
                 }
             }
         }
     }
-    result->result_ids_.swap(buf_ids);
-    result->result_distances_.swap(buf_distances);
+    tar_ids.swap(buf_ids);
+    tar_distances.swap(buf_distances);
 }
 
 int64_t
 SearchTask::nq() {
+    if (query_ptr_) {
+        auto vector_query = query_ptr_->vectors.begin();
+        if (vector_query != query_ptr_->vectors.end()) {
+            if (vector_query->second) {
+                auto vector_param = vector_query->second;
+                auto field_visitor = snapshot_->GetField(vector_query->second->field_name);
+                if (field_visitor) {
+                    if (field_visitor->GetParams().contains(engine::PARAM_DIMENSION)) {
+                        int64_t dim = field_visitor->GetParams()[engine::PARAM_DIMENSION];
+                        if (!vector_param->query_vector.float_data.empty()) {
+                            return vector_param->query_vector.float_data.size() / dim;
+                        } else if (!vector_param->query_vector.binary_data.empty()) {
+                            return vector_param->query_vector.binary_data.size() * 8 / dim;
+                        }
+                    }
+                }
+            }
+        }
+    }
     return 0;
+}
+
+milvus::json
+SearchTask::ExtraParam() {
+    milvus::json param;
+    if (query_ptr_) {
+        auto vector_query = query_ptr_->vectors.begin();
+        if (vector_query != query_ptr_->vectors.end()) {
+            if (vector_query->second) {
+                return vector_query->second->extra_params;
+            }
+        }
+    }
+    return param;
+}
+
+std::string
+SearchTask::IndexType() {
+    if (!index_type_.empty()) {
+        return index_type_;
+    }
+    auto seg_visitor = engine::SegmentVisitor::Build(snapshot_, segment_id_);
+    index_type_ = "FLAT";
+
+    if (seg_visitor) {
+        for (const auto& name : query_ptr_->index_fields) {
+            auto field_visitor = seg_visitor->GetFieldVisitor(name);
+            auto type = field_visitor->GetField()->GetFtype();
+            if (!field_visitor) {
+                continue;
+            }
+            if (type == engine::DataType::VECTOR_FLOAT || type == engine::DataType::VECTOR_BINARY) {
+                auto fe_visitor = field_visitor->GetElementVisitor(engine::FieldElementType::FET_INDEX);
+                if (fe_visitor) {
+                    auto element = fe_visitor->GetElement();
+                    index_type_ = element->GetTypeName();
+                }
+                return index_type_;
+            }
+        }
+    }
+    return index_type_;
 }
 
 }  // namespace scheduler

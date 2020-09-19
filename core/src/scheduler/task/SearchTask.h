@@ -47,10 +47,17 @@ class SearchTask : public Task {
 
     static void
     MergeTopkToResultSet(const engine::ResultIds& src_ids, const engine::ResultDistances& src_distances, size_t src_k,
-                         size_t nq, size_t topk, bool ascending, engine::QueryResultPtr& result);
+                         size_t nq, size_t topk, bool ascending, engine::ResultIds& tar_ids,
+                         engine::ResultDistances& tar_distances);
 
     int64_t
     nq();
+
+    milvus::json
+    ExtraParam();
+
+    std::string
+    IndexType();
 
  private:
     void
@@ -63,6 +70,7 @@ class SearchTask : public Task {
     const engine::DBOptions& options_;
     query::QueryPtr query_ptr_;
     engine::snapshot::ID_TYPE segment_id_;
+    std::string index_type_;
 
     engine::ExecutionEnginePtr execution_engine_;
 

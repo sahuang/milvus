@@ -22,7 +22,9 @@
 #include <vector>
 
 #include "config/ConfigMgr.h"
+#include "db/SnapshotVisitor.h"
 #include "db/insert/MemSegment.h"
+#include "db/snapshot/Snapshots.h"
 #include "utils/Status.h"
 
 namespace milvus {
@@ -43,6 +45,9 @@ class MemCollection {
     Status
     Delete(const std::vector<idx_t>& ids, idx_t op_id);
 
+    size_t
+    DeleteCount() const;
+
     Status
     EraseMem(int64_t partition_id);
 
@@ -59,14 +64,22 @@ class MemCollection {
     Status
     ApplyDeleteToFile();
 
+    Status
+    CreateDeletedDocsBloomFilter(const std::shared_ptr<snapshot::CompoundSegmentsOperation>& segments_op,
+                                 const snapshot::ScopedSnapshotT& ss, engine::SegmentVisitorPtr& seg_visitor,
+                                 const std::unordered_set<engine::offset_t>& del_offsets, uint64_t new_deleted,
+                                 segment::IdBloomFilterPtr& bloom_filter);
+
  private:
-    int64_t collection_id_;
+    int64_t collection_id_ = 0;
     DBOptions options_;
 
     MemSegmentMap mem_segments_;
     std::mutex mem_mutex_;
 
     std::unordered_set<idx_t> ids_to_delete_;
+
+    int64_t segment_row_count_ = 0;
 };
 
 using MemCollectionPtr = std::shared_ptr<MemCollection>;
