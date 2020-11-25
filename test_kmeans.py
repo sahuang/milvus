@@ -4,6 +4,7 @@ import numpy as np
 from milvus import Milvus, DataType
 import sys
 from pprint import pprint
+import csv
 
 def get_dataset(hdf5_file_path):
     if not os.path.exists(hdf5_file_path):
@@ -43,22 +44,25 @@ GIST_PATH = '/home/ann_hdf5/gist-960-euclidean.hdf5'
 This script will take several arguments.
 
 e.g. 
-1) python3 test_kmeans.py SIFT 10 IVF_FLAT 1024 8 50
-2) python3 test_kmeans.py GIST 2 IVF_PQ 1024 8 50 16
+1) python3 test_kmeans.py SIFT 10 IVF_FLAT
+2) python3 test_kmeans.py GIST 2 IVF_PQ 16
 
 argv[0]: This file name, test_kmeans.py
 argv[1]: Dataset type. SIFT(d=128) and GIST(d=960)
 argv[2]: Number of segments. {1, 2, 10}
 argv[3]: Index Type. {IVF_FLAT, IVF_SQ8, IVF_PQ}
-argv[4]: nlist
-argv[5]: nprobe
-argv[6]: topK
-argv[7]: If exists, this is M in IVF_PQ
+argv[4]: If exists, this is M in IVF_PQ
 '''
-if len(sys.argv) < 7:
+if len(sys.argv) < 4:
     raise Exception("Too few arguments!")
-elif len(sys.argv) > 8:
+elif len(sys.argv) > 5:
     raise Exception("Too many arguments!")
+
+combinations = []
+for nlist in [1024, 2048, 4096]:
+    for nprobe in [1, 2, 4, 8, 16, 32]:
+        for topk in [10, 50, 100]:
+            combinations.append((nlist, nprobe, topk))
 
 try:
     # Read input
@@ -70,36 +74,49 @@ try:
         dim = 960
     collection_name = sys.argv[1] + '_' + sys.argv[2]
     index_type = sys.argv[3]
-    nlist = int(sys.argv[4])
-    nprobe = int(sys.argv[5])
-    topK = int(sys.argv[6])
-    if len(sys.argv) == 8:
-        M = int(sys.argv[7])
-    print("======Dataset: {}, Index Type: {}, nlist: {}, nprobe: {}, topK: {}======".format(collection_name, index_type, nlist, nprobe, topK))
+    for c in combinations:
+        nlist = c[0]
+        nprobe = c[1]
+        topK = c[2]
+        if len(sys.argv) == 5:
+            M = int(sys.argv[4])
+        print("======Dataset: {}, Index Type: {}, nlist: {}, nprobe: {}, topK: {}======".format(collection_name, index_type, nlist, nprobe, topK))
 
-    # Create collection, insert data, create index
-    client.create_index(collection_name, "embedding", {"index_type": index_type, "metric_type": "L2", "params": {"nlist": nlist}})
-    pprint(client.get_collection_info(collection_name))
+        # Create collection, insert data, create index
+        client.create_index(collection_name, "embedding", {"index_type": index_type, "metric_type": "L2", "params": {"nlist": nlist}})
+        pprint(client.get_collection_info(collection_name))
+        print("==========")
 
-    # Search
-    query_embedding = np.array(dataset["test"][:nq])
-    query_hybrid = {
-        "bool": {
-            "must": [{
-                "vector": {
-                    "embedding": {"topk": topK,
-                                  "query": query_embedding.tolist(),
-                                  "metric_type": "L2",
-                                  "params": {"nprobe": nprobe}}
-                }
-            }]
+        # Search
+        query_embedding = np.array(dataset["test"][:nq])
+        query_hybrid = {
+            "bool": {
+                "must": [{
+                    "vector": {
+                        "embedding": {"topk": topK,
+                                    "query": query_embedding.tolist(),
+                                    "metric_type": "L2",
+                                    "params": {"nprobe": nprobe}}
+                    }
+                }]
+            }
         }
-    }
-    results = client.search(collection_name, query_hybrid)
-    result_ids = get_ids(results)
-    true_ids = np.array(dataset["neighbors"])
-    acc_value = get_recall_value(true_ids[:nq, :topK].tolist(), result_ids)
-    print("Recall: {}".format(acc_value))
+        results = client.search(collection_name, query_hybrid)
+        result_ids = get_ids(results)
+        true_ids = np.array(dataset["neighbors"])
+        acc_value = get_recall_value(true_ids[:nq, :topK].tolist(), result_ids)
+        print("Recall: {}".format(acc_value))
+
+        # CSV operations
+        csv_name = 'Original_' + index_type + '_' + collection_name + '.csv'
+        fp = open('/tmp/server_file.txt', 'r')
+        lines = fp.readlines()
+        with open(csv_name,'a') as fd:
+            fd.write("{},{},{},{},{},{},{},{},{},{}".format(
+                nlist,nprobe,topK,
+                lines[0],lines[1],lines[2],lines[3],lines[4],lines[5],
+                acc_value
+            ))
 except Exception as e:
     raise Exception(e)
 

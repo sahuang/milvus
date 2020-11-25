@@ -15,6 +15,8 @@
 #include <cstring>
 
 #include <omp.h>
+#include <iostream>
+#include <fstream>
 
 #include <faiss/utils/utils.h>
 #include <faiss/utils/random.h>
@@ -587,6 +589,14 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
                         "objective=%g imbalance=%.3f nsplit=%d\n",
                         i, stats.time, stats.time_search, stats.obj,
                         stats.imbalance_factor, nsplit);
+                if (i == niter - 1) {
+                    std::ofstream MyFile("/tmp/server_file.txt");
+                    MyFile << i+1 << std::endl;
+                    MyFile << stats.time << std::endl;
+                    MyFile << stats.obj << std::endl;
+                    MyFile << stats.imbalance_factor << std::endl;
+                    MyFile.close();
+                }
             }
 
             post_process_centroids ();
