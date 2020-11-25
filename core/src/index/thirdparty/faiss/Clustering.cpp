@@ -590,7 +590,8 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
                         i, stats.time, stats.time_search, stats.obj,
                         stats.imbalance_factor, nsplit);
                 if (i == niter - 1) {
-                    std::ofstream MyFile("/tmp/server_file.txt");
+                    std::ofstream MyFile;
+                    MyFile.open("/tmp/server_file.txt", std::ios_base::app);
                     MyFile << i+1 << std::endl;
                     MyFile << stats.time << std::endl;
                     MyFile << stats.obj << std::endl;
