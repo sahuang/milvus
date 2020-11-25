@@ -51,9 +51,9 @@ try:
         client.create_collection(collection_name_gist, collection_param_gist)
         insert_vectors_sift = np.array(dataset_sift["train"]).tolist()
         insert_vectors_gist = np.array(dataset_gist["train"]).tolist()
-        for loop in range(10):
-            start = loop * 100000
-            end = min((loop + 1) * 100000, nb)
+        for loop in range(40):
+            start = loop * 25000
+            end = min((loop + 1) * 20000, nb)
             if start < end:
                 tmp_vectors_sift = insert_vectors_sift[start:end]
                 tmp_vectors_gist = insert_vectors_gist[start:end]
