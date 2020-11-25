@@ -34,22 +34,21 @@ def get_ids(result):
 _HOST = '127.0.0.1'
 _PORT = '19530'
 client = Milvus(_HOST, _PORT)
-collection_name = 'demo'
 nb = 1000000
 nq = 100
-SIFT_PATH = '/test/milvus/ann_hdf5/sift-128-euclidean.hdf5'
-GIST_PATH = '/test/milvus/ann_hdf5/gist-960-euclidean.hdf5'
+SIFT_PATH = '/home/ann_hdf5/sift-128-euclidean.hdf5'
+GIST_PATH = '/home/ann_hdf5/gist-960-euclidean.hdf5'
 
 '''
 This script will take several arguments.
 
 e.g. 
-1) python3 ./test_kmeans.py SIFT 10 IVF_FLAT 1024 8 50
-2) python3 ./test_kmeans.py GIST 10 IVF_PQ 1024 8 50 16
+1) python3 test_kmeans.py SIFT 10 IVF_FLAT 1024 8 50
+2) python3 test_kmeans.py GIST 2 IVF_PQ 1024 8 50 16
 
 argv[0]: This file name, test_kmeans.py
 argv[1]: Dataset type. SIFT(d=128) and GIST(d=960)
-argv[2]: Number of segments. {1, 2 10}
+argv[2]: Number of segments. {1, 2, 10}
 argv[3]: Index Type. {IVF_FLAT, IVF_SQ8, IVF_PQ}
 argv[4]: nlist
 argv[5]: nprobe
@@ -69,41 +68,16 @@ try:
     else:
         dataset = get_dataset(GIST_PATH)
         dim = 960
-    segments = int(sys.argv[2])
+    collection_name = sys.argv[1] + '_' + sys.argv[2]
     index_type = sys.argv[3]
     nlist = int(sys.argv[4])
     nprobe = int(sys.argv[5])
     topK = int(sys.argv[6])
     if len(sys.argv) == 8:
         M = int(sys.argv[7])
-    print("======Dataset: {}, Segment count: {}, Index Type: {}, \
-        nlist: {}, nprobe: {}, topK: {}======".format(sys.argv[1], \
-            segments, index_type, nlist, nprobe, topK))
+    print("======Dataset: {}, Index Type: {}, nlist: {}, nprobe: {}, topK: {}======".format(collection_name, index_type, nlist, nprobe, topK))
 
     # Create collection, insert data, create index
-    row_in_segment = nb // segments
-    collection_param = {
-        "fields": [
-            {"name": "embedding", "type": DataType.FLOAT_VECTOR, "params": {"dim": dim}},
-        ],
-        "segment_row_limit": row_in_segment,
-        "auto_id": False
-    }
-    client.create_collection(collection_name, collection_param)
-    insert_vectors = np.array(dataset["train"]).tolist()
-    for loop in range(segments):
-        start = loop * row_in_segment
-        end = min((loop + 1) * row_in_segment, nb)
-        if start < end:
-            tmp_vectors = insert_vectors[start:end]
-            ids = [i for i in range(start, end)]
-            hybrid_entities = [
-                {"name": "embedding", "values": tmp_vectors, "type": DataType.FLOAT_VECTOR},
-            ]
-            res_ids = client.insert(collection_name, hybrid_entities, ids)
-            assert res_ids == ids
-    client.flush([collection_name])
-    print("Total row count: {}".format(client.count_entities(collection_name)))
     client.create_index(collection_name, "embedding", {"index_type": index_type, "metric_type": "L2", "params": {"nlist": nlist}})
     pprint(client.get_collection_info(collection_name))
 
@@ -122,7 +96,7 @@ try:
         }
     }
     results = client.search(collection_name, query_hybrid)
-    result_ids = results.get
+    result_ids = get_ids(results)
     true_ids = np.array(dataset["neighbors"])
     acc_value = get_recall_value(true_ids[:nq, :topK].tolist(), result_ids)
     print("Recall: {}".format(acc_value))
