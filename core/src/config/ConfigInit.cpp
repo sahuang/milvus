@@ -173,6 +173,8 @@ InitConfig() {
         {"engine.use_blas_threshold",
          CreateIntegerConfig("engine.use_blas_threshold", 0, std::numeric_limits<int64_t>::max(),
                              &config.engine.use_blas_threshold.value, 16385)},
+        {"engine.niter", CreateIntegerConfig("engine.niter", 0, std::numeric_limits<int64_t>::max(),
+                                             &config.engine.niter.value, 10)},
         {"engine.omp_thread_num", CreateIntegerConfig("engine.omp_thread_num", 0, std::numeric_limits<int64_t>::max(),
                                                       &config.engine.omp_thread_num.value, 0)},
         {"engine.clustering_type", CreateEnumConfig("engine.clustering_type", &ClusteringMap,

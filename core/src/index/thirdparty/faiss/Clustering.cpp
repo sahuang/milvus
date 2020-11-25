@@ -28,7 +28,7 @@ namespace faiss {
 ClusteringParameters::ClusteringParameters ():
     niter(25),
     nredo(1),
-    verbose(false),
+    verbose(true),
     spherical(false),
     int_centroids(false),
     update_index(false),
@@ -587,7 +587,6 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
                         "objective=%g imbalance=%.3f nsplit=%d       \r",
                         i, stats.time, stats.time_search, stats.obj,
                         stats.imbalance_factor, nsplit);
-                fflush (stdout);
             }
 
             post_process_centroids ();

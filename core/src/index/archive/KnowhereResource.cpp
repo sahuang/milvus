@@ -14,6 +14,7 @@
 #include "knowhere/index/vector_index/helpers/FaissGpuResourceMgr.h"
 #endif
 #include <faiss/Clustering.h>
+#include <faiss/IndexIVF.h>
 #include <faiss/utils/distances.h>
 
 #include "config/ServerConfig.h"
@@ -69,6 +70,8 @@ KnowhereResource::Initialize() {
     // init faiss global variable
     int64_t use_blas_threshold = config.engine.use_blas_threshold();
     faiss::distance_compute_blas_threshold = use_blas_threshold;
+    int64_t niter = config.engine.niter();
+    faiss::niter = niter;
 
     int64_t clustering_type = config.engine.clustering_type();
     switch (clustering_type) {

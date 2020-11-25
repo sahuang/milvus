@@ -110,6 +110,7 @@ ConfigMgr::ConfigMgr() : config_list_(InitConfig()) {
         "engine.search_combine_nq",
         "engine.use_blas_threshold",
         "engine.omp_thread_num",
+        "engine.niter",
     };
 }
 

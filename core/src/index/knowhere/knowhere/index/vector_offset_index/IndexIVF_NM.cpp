@@ -331,6 +331,9 @@ IVF_NM::QueryImpl(int64_t n, const float* query, int64_t k, float* distances, in
     LOG_KNOWHERE_DEBUG_ << "IVF_NM search cost: " << search_cost
                         << ", quantization cost: " << faiss::indexIVF_stats.quantization_time
                         << ", data search cost: " << faiss::indexIVF_stats.search_time;
+    std::cout << "IVF_NM search cost: " << search_cost
+              << ", quantization cost: " << faiss::indexIVF_stats.quantization_time
+              << ", data search cost: " << faiss::indexIVF_stats.search_time << std::endl;
     faiss::indexIVF_stats.quantization_time = 0;
     faiss::indexIVF_stats.search_time = 0;
 }
