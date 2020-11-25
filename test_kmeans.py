@@ -108,6 +108,7 @@ try:
         print("Recall: {}".format(acc_value))
 
         # CSV operations
+        '''
         csv_name = 'Original_' + index_type + '_' + collection_name + '.csv'
         fp = open('/tmp/server_file.txt', 'r')
         lines = fp.readlines()
@@ -117,6 +118,7 @@ try:
                 lines[0],lines[1],lines[2],lines[3],lines[4],lines[5],
                 acc_value
             ))
+        '''
 except Exception as e:
     raise Exception(e)
 
