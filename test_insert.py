@@ -53,8 +53,9 @@ try:
         insert_vectors_gist = np.array(dataset_gist["train"]).tolist()
         for loop in range(40):
             start = loop * 25000
-            end = min((loop + 1) * 20000, nb)
+            end = min((loop + 1) * 25000, nb)
             if start < end:
+                print("Start: {}, End: {}".format(start, end))
                 tmp_vectors_sift = insert_vectors_sift[start:end]
                 tmp_vectors_gist = insert_vectors_gist[start:end]
                 ids = [i for i in range(start, end)]
@@ -66,7 +67,6 @@ try:
                 ]
                 res_ids_1 = client.insert(collection_name_sift, hybrid_entities_sift, ids)
                 res_ids_2 = client.insert(collection_name_gist, hybrid_entities_gist, ids)
-                print("Start: {}, End: {}".format(start, end))
                 assert res_ids_1 == ids
                 assert res_ids_2 == ids
         client.flush([collection_name_sift, collection_name_gist])
