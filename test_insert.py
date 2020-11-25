@@ -70,10 +70,10 @@ try:
                 assert res_ids_1 == ids
                 assert res_ids_2 == ids
         client.flush([collection_name_sift, collection_name_gist])
-        print("Total row count sift: {}, segment: {}".format(client.count_entities(collection_name_sift)), segments)
+        print("Total row count sift: {}, segment: {}".format(client.count_entities(collection_name_sift), segments))
         print("=========================")
         pprint(client.get_collection_info(collection_name_sift))
-        print("Total row count gist: {}, segment: {}".format(client.count_entities(collection_name_gist)), segments)
+        print("Total row count gist: {}, segment: {}".format(client.count_entities(collection_name_gist), segments))
         print("=========================")
         pprint(client.get_collection_info(collection_name_gist))
     print(client.list_collections())
