@@ -43,11 +43,15 @@ try:
             "segment_row_limit": row_in_segment,
             "auto_id": False
         }
+        if collection_name_sift in client.list_collections():
+            client.drop_collection(collection_name_sift)
+        if collection_name_gist in client.list_collections():
+            client.drop_collection(collection_name_gist)
         client.create_collection(collection_name_sift, collection_param_sift)
         client.create_collection(collection_name_gist, collection_param_gist)
         insert_vectors_sift = np.array(dataset_sift["train"]).tolist()
         insert_vectors_gist = np.array(dataset_gist["train"]).tolist()
-        for loop in range(segments):
+        for loop in range(10):
             start = loop * row_in_segment
             end = min((loop + 1) * row_in_segment, nb)
             if start < end:
@@ -65,8 +69,12 @@ try:
                 assert res_ids_1 == ids
                 assert res_ids_2 == ids
         client.flush([collection_name_sift, collection_name_gist])
-        print("Total row count sift: {}".format(client.count_entities(collection_name_sift)))
-        print("Total row count gist: {}".format(client.count_entities(collection_name_gist)))
+        print("Total row count sift: {}, segment: {}".format(client.count_entities(collection_name_sift)), segments)
+        print("=========================")
+        pprint(client.get_collection_info(collection_name_sift))
+        print("Total row count gist: {}, segment: {}".format(client.count_entities(collection_name_gist)), segments)
+        print("=========================")
+        pprint(client.get_collection_info(collection_name_gist))
     print(client.list_collections())
 except Exception as e:
     raise Exception(e)
