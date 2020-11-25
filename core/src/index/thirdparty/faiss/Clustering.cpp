@@ -584,7 +584,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
 
             if (verbose) {
                 printf ("  Iteration %d (%.2f s, search %.2f s): "
-                        "objective=%g imbalance=%.3f nsplit=%d       \r",
+                        "objective=%g imbalance=%.3f nsplit=%d\n",
                         i, stats.time, stats.time_search, stats.obj,
                         stats.imbalance_factor, nsplit);
             }

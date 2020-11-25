@@ -327,7 +327,7 @@ IVF_NM::QueryImpl(int64_t n, const float* query, int64_t k, float* distances, in
     ivf_index->search_without_codes(n, reinterpret_cast<const float*>(query), data, prefix_sum, is_sq8, k, distances,
                                     labels, bitset);
     stdclock::time_point after = stdclock::now();
-    double search_cost = (std::chrono::duration<double, std::micro>(after - before)).count();
+    double search_cost = (std::chrono::duration<double, std::milli>(after - before)).count();
     LOG_KNOWHERE_DEBUG_ << "IVF_NM search cost: " << search_cost
                         << ", quantization cost: " << faiss::indexIVF_stats.quantization_time
                         << ", data search cost: " << faiss::indexIVF_stats.search_time;
