@@ -123,15 +123,16 @@ try:
         quant_time = 0
         search_time = 0
         for loop in range(segments):
-            train_times.append(lines[4 * loop + 1])
-            objectives.append(lines[4 * loop + 2])
-            imbalance.append(lines[4 * loop + 3])
+            train_times.append(float(lines[4 * loop + 1]))
+            objectives.append(float(lines[4 * loop + 2]))
+            imbalance.append(float(lines[4 * loop + 3]))
             quant_time += float(lines[4 * segments + loop * 2])
             search_time += float(lines[4 * segments + loop * 2 + 1])
         with open(csv_name,'a') as fd:
             fd.write("{},{},{},{},{},{},{},{},{},{}".format(
                 nlist,nprobe,topK,
-                niter,"_".join(objectives),"_".join(imbalance),"_".join(train_times),quant_time,search_time,
+                niter,"_".join([str(x) for x in objectives]),
+                "_".join([str(x) for x in imbalance]),"_".join([str(x) for x in train_times]),quant_time,search_time,
                 acc_value
             ))
         os.system("rm -rf /tmp/server_file.txt")
