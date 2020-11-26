@@ -5,6 +5,7 @@ from milvus import Milvus, DataType
 import sys
 from pprint import pprint
 import csv
+import time
 
 def get_dataset(hdf5_file_path):
     if not os.path.exists(hdf5_file_path):
@@ -74,6 +75,7 @@ try:
         dim = 960
     collection_name = sys.argv[1] + '_' + sys.argv[2]
     index_type = sys.argv[3]
+    recalls = []
     for c in combinations:
         nlist = c[0]
         nprobe = c[1]
@@ -83,6 +85,7 @@ try:
         print("======Dataset: {}, Index Type: {}, nlist: {}, nprobe: {}, topK: {}======".format(collection_name, index_type, nlist, nprobe, topK))
 
         # Create collection, insert data, create index
+        client.drop_index(collection_name)
         client.create_index(collection_name, "embedding", {"index_type": index_type, "metric_type": "L2", "params": {"nlist": nlist}})
         pprint(client.get_collection_info(collection_name))
         print("==========")
@@ -105,20 +108,34 @@ try:
         result_ids = get_ids(results)
         true_ids = np.array(dataset["neighbors"])
         acc_value = get_recall_value(true_ids[:nq, :topK].tolist(), result_ids)
+        recalls.append(acc_value)
         print("Recall: {}".format(acc_value))
 
         # CSV operations
-        '''
         csv_name = 'Original_' + index_type + '_' + collection_name + '.csv'
         fp = open('/tmp/server_file.txt', 'r')
         lines = fp.readlines()
+        segments = int(sys.argv[2])
+        niter = lines[0]
+        train_times = []
+        objectives = []
+        imbalance = []
+        quant_time = 0
+        search_time = 0
+        for loop in range(segments):
+            train_times.append(lines[4 * loop + 1])
+            objectives.append(lines[4 * loop + 2])
+            imbalance.append(lines[4 * loop + 3])
+            quant_time += float(lines[4 * segments + loop * 2])
+            search_time += float(lines[4 * segments + loop * 2 + 1])
         with open(csv_name,'a') as fd:
             fd.write("{},{},{},{},{},{},{},{},{},{}".format(
                 nlist,nprobe,topK,
-                lines[0],lines[1],lines[2],lines[3],lines[4],lines[5],
+                niter,",".join(objectives),",".join(imbalance),",".join(train_times),quant_time,search_time,
                 acc_value
             ))
-        '''
+        os.system("rm -rf /tmp/server_file.txt")
+        time.sleep(1)
 except Exception as e:
     raise Exception(e)
 
