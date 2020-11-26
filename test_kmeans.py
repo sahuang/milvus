@@ -85,7 +85,7 @@ try:
         print("======Dataset: {}, Index Type: {}, nlist: {}, nprobe: {}, topK: {}======".format(collection_name, index_type, nlist, nprobe, topK))
 
         # Create collection, insert data, create index
-        client.drop_index(collection_name)
+        client.drop_index(collection_name, "embedding")
         client.create_index(collection_name, "embedding", {"index_type": index_type, "metric_type": "L2", "params": {"nlist": nlist}})
         pprint(client.get_collection_info(collection_name))
         print("==========")
