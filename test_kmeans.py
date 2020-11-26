@@ -129,7 +129,7 @@ try:
             quant_time += float(lines[4 * segments + loop * 2])
             search_time += float(lines[4 * segments + loop * 2 + 1])
         with open(csv_name,'a') as fd:
-            fd.write("{},{},{},{},{},{},{},{},{},{}".format(
+            fd.write("{},{},{},{},{},{},{},{},{},{}\n".format(
                 nlist,nprobe,topK,
                 niter,"_".join([str(x) for x in objectives]),
                 "_".join([str(x) for x in imbalance]),"_".join([str(x) for x in train_times]),quant_time,search_time,
