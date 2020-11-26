@@ -76,6 +76,13 @@ try:
     collection_name = sys.argv[1] + '_' + sys.argv[2]
     index_type = sys.argv[3]
     recalls = []
+    csv_name = 'Original_' + index_type + '_' + collection_name + '.csv'
+    with open(csv_name,'a') as fd:
+        fd.write("{},{},{},{},{},{},{},{},{},{}\n".format(
+            'nlist','nprobe','topK',
+            'niter','objective','imbalance','training time (s)',
+            'quantization time (ms)', 'data search time (ms)', 'recall'
+        ))
     for c in combinations:
         nlist = c[0]
         nprobe = c[1]
@@ -116,7 +123,7 @@ try:
         fp = open('/tmp/server_file.txt', 'r')
         lines = fp.readlines()
         segments = int(sys.argv[2])
-        niter = lines[0]
+        niter = int(lines[0])
         train_times = []
         objectives = []
         imbalance = []
