@@ -131,7 +131,7 @@ try:
         with open(csv_name,'a') as fd:
             fd.write("{},{},{},{},{},{},{},{},{},{}".format(
                 nlist,nprobe,topK,
-                niter,",".join(objectives),",".join(imbalance),",".join(train_times),quant_time,search_time,
+                niter,"_".join(objectives),"_".join(imbalance),"_".join(train_times),quant_time,search_time,
                 acc_value
             ))
         os.system("rm -rf /tmp/server_file.txt")
