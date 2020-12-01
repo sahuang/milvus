@@ -534,6 +534,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
         // k-means iterations
 
         float err = 0;
+        float prev_objective = 0;
         for (int i = 0; i < niter; i++) {
             double t0s = getmillisecs();
 
@@ -589,15 +590,6 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
                         "objective=%g imbalance=%.3f nsplit=%d\n",
                         i, stats.time, stats.time_search, stats.obj,
                         stats.imbalance_factor, nsplit);
-                if (i == niter - 1) {
-                    std::ofstream MyFile;
-                    MyFile.open("/tmp/server_file.txt", std::ios_base::app);
-                    MyFile << i+1 << std::endl;
-                    MyFile << stats.time << std::endl;
-                    MyFile << stats.obj << std::endl;
-                    MyFile << stats.imbalance_factor << std::endl;
-                    MyFile.close();
-                }
             }
 
             post_process_centroids ();
@@ -610,6 +602,20 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
             }
 
             index.add (k, centroids.data());
+
+            // Early stop strategy
+            float diff = (prev_objective == 0) ? 100 : (prev_objective - stats.obj) / prev_objective;
+            prev_objective = stats.obj;
+            if (diff < 0.7 / 100.) {
+                std::ofstream MyFile;
+                MyFile.open("/tmp/server_file.txt", std::ios_base::app);
+                MyFile << i+1 << std::endl;
+                MyFile << stats.time << std::endl;
+                MyFile << stats.obj << std::endl;
+                MyFile << stats.imbalance_factor << std::endl;
+                MyFile.close();
+                break;
+            }
             InterruptCallback::check ();
         }
 
