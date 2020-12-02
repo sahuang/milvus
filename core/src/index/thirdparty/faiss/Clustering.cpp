@@ -468,9 +468,9 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
     if (stat("/tmp/map.data", &buffer) == 0) {
         std::ifstream r_file;
         r_file.open("/tmp/map.data", std::ifstream::binary);
-        printf("Size of centroids when read: %ld, %ld\n", sizeof(centroids), k * d * sizeof(float));
         r_file.read(reinterpret_cast<char*>(centroids.data()), k * d * sizeof(float));
         r_file.close();
+        printf("Last three: %.2f %.2f %.2f\n", centroids[(k-3)*d], centroids[(k-2)*d], centroids[(k-1)*d]);
     }
 
     FAISS_THROW_IF_NOT_MSG (
@@ -495,8 +495,6 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
     // temporary buffer to decode vectors during the optimization
     std::vector<float> decode_buffer
         (codec ? d * decode_block_size : 0);
-
-    printf("Current centroid size: %ld\n", centroids.size());
 
     for (int redo = 0; redo < nredo; redo++) {
 
@@ -637,12 +635,9 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
         if (stat("/tmp/map.data", &buffer) != 0) {
             std::ofstream w_file;
             w_file.open("/tmp/map.data", std::ofstream::binary);
-            printf("Size of centroids when write: %ld, %ld\n", sizeof(centroids), k * d * sizeof(float));
             w_file.write(reinterpret_cast<char const*>(centroids.data()), k * d * sizeof(float));
             w_file.close();
         }
-
-        printf("First three: %.2f %.2f %.2f\n", centroids[0], centroids[d], centroids[2*d]);
 
         if (verbose) printf("\n");
         if (nredo > 1) {
