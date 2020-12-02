@@ -463,6 +463,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
     std::vector<float> best_centroids;
 
     // support input centroids
+    centroids.resize(d * k);
     struct stat buffer; 
     if (stat("/tmp/map.data", &buffer) == 0) {
         std::ifstream r_file;
@@ -519,7 +520,6 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
                 }
             }
 
-            centroids.resize(d * k);
             if (!codec) {
                 for (int i = n_input_centroids; i < k; i++) {
                     memcpy(&centroids[i * d], x + centroids_index[i] * line_size, line_size);
@@ -641,6 +641,8 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
             w_file.write(reinterpret_cast<char const*>(centroids.data()), k * d * sizeof(float));
             w_file.close();
         }
+
+        printf("First three: %.2f %.2f %.2f\n", centroids[0], centroids[d], centroids[2*d]);
 
         if (verbose) printf("\n");
         if (nredo > 1) {
