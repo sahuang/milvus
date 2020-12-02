@@ -655,12 +655,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
         index.add(k, best_centroids.data());
     }
 
-}
-
-float kmeans_clustering (size_t d, size_t n, size_t k,
-                         const float *x,
-                         float *centroids)
-{
+}server_file
     Clustering clus (d, k);
     clus.verbose = d * n * k > (1L << 30);
     // display logs if > 1Gflop per iteration
