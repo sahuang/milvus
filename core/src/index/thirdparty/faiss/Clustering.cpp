@@ -17,6 +17,8 @@
 #include <omp.h>
 #include <iostream>
 #include <fstream>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include <faiss/utils/utils.h>
 #include <faiss/utils/random.h>
@@ -461,10 +463,13 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
     std::vector<float> best_centroids;
 
     // support input centroids
-    if (std::ifstream("/tmp/map.data").good()) {
-        std::ifstream r_file ("/tmp/map.data", std::ios::binary);
+    struct stat buffer; 
+    if (stat("/tmp/map.data", &buffer) == 0) {
+        std::ifstream r_file;
+        r_file.open("/tmp/map.data", std::ifstream::binary);
         printf("Size of centroids when read: %ld, %ld\n", sizeof(centroids), k * d * sizeof(float));
         r_file.read(reinterpret_cast<char*>(centroids.data()), k * d * sizeof(float));
+        r_file.close();
     }
 
     FAISS_THROW_IF_NOT_MSG (
@@ -629,10 +634,12 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
         }
 
         // Write centroids data to file if it is the first segment
-        if (!std::ifstream("/tmp/map.data").good()) {
-            std::ofstream w_file ("/tmp/map.data", std::ios::binary);
+        if (stat("/tmp/map.data", &buffer) != 0) {
+            std::ofstream w_file;
+            w_file.open("/tmp/map.data", std::ofstream::binary);
             printf("Size of centroids when write: %ld, %ld\n", sizeof(centroids), k * d * sizeof(float));
             w_file.write(reinterpret_cast<char const*>(centroids.data()), k * d * sizeof(float));
+            w_file.close();
         }
 
         if (verbose) printf("\n");
