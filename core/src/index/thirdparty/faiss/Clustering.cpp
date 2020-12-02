@@ -490,7 +490,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
     std::vector<float> decode_buffer
         (codec ? d * decode_block_size : 0);
 
-    printf("Current centroid size: %d\n", centroids.size());
+    printf("Current centroid size: %ld\n", centroids.size());
 
     for (int redo = 0; redo < nredo; redo++) {
 
@@ -655,7 +655,12 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
         index.add(k, best_centroids.data());
     }
 
-}server_file
+}
+
+float kmeans_clustering (size_t d, size_t n, size_t k,
+                         const float *x,
+                         float *centroids)
+{
     Clustering clus (d, k);
     clus.verbose = d * n * k > (1L << 30);
     // display logs if > 1Gflop per iteration
