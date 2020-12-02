@@ -461,6 +461,10 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
     std::vector<float> best_centroids;
 
     // support input centroids
+    if (std::ifstream("map.data").good()) {
+        std::ifstream r_file ("map.data", std::ios::binary);
+        r_file.read(reinterpret_cast<char*>(centroids.data()), sizeof(centroids));
+    }
 
     FAISS_THROW_IF_NOT_MSG (
        centroids.size() % d == 0,
@@ -485,6 +489,8 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
     std::vector<float> decode_buffer
         (codec ? d * decode_block_size : 0);
 
+    printf("Current centroid size: %d\n", centroids.size());
+
     for (int redo = 0; redo < nredo; redo++) {
 
         if (verbose && nredo > 1) {
@@ -495,14 +501,16 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
             int64_t random_seed = seed + 1 + redo * 15486557L;
             std::vector<int> centroids_index(nx);
 
-            if (ClusteringType::K_MEANS == clustering_type) {
-                //Use classic kmeans algorithm
-                kmeans_algorithm(centroids_index, random_seed, n_input_centroids, d, k, nx, x_in);
-            } else if (ClusteringType::K_MEANS_PLUS_PLUS == clustering_type) {
-                //Use kmeans++ algorithm
-                kmeans_plus_plus_algorithm(centroids_index, random_seed, n_input_centroids, d, k, nx, x_in);
-            } else {
-                FAISS_THROW_FMT ("Clustering Type is knonws: %d", (int)clustering_type);
+            if (n_input_centroids < k) {
+                if (ClusteringType::K_MEANS == clustering_type) {
+                    //Use classic kmeans algorithm
+                    kmeans_algorithm(centroids_index, random_seed, n_input_centroids, d, k, nx, x_in);
+                } else if (ClusteringType::K_MEANS_PLUS_PLUS == clustering_type) {
+                    //Use kmeans++ algorithm
+                    kmeans_plus_plus_algorithm(centroids_index, random_seed, n_input_centroids, d, k, nx, x_in);
+                } else {
+                    FAISS_THROW_FMT ("Clustering Type is knonws: %d", (int)clustering_type);
+                }
             }
 
             centroids.resize(d * k);
@@ -617,6 +625,12 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
                 break;
             }
             InterruptCallback::check ();
+        }
+
+        // Write centroids data to file if it is the first segment
+        if (!std::ifstream("map.data").good()) {
+            std::ofstream w_file ("map.data", std::ios::binary);
+            w_file.write(reinterpret_cast<char const*>(centroids.data()), sizeof(centroids));
         }
 
         if (verbose) printf("\n");
