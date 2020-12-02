@@ -76,7 +76,7 @@ try:
     collection_name = sys.argv[1] + '_' + sys.argv[2]
     index_type = sys.argv[3]
     recalls = []
-    csv_name = 'Original_' + index_type + '_' + collection_name + '.csv'
+    csv_name = 'Early_Used_' + index_type + '_' + collection_name + '.csv'
     with open(csv_name,'a') as fd:
         fd.write("{},{},{},{},{},{},{},{},{},{}\n".format(
             'nlist','nprobe','topK',
@@ -119,7 +119,6 @@ try:
         print("Recall: {}".format(acc_value))
 
         # CSV operations
-        csv_name = 'Original_' + index_type + '_' + collection_name + '.csv'
         fp = open('/tmp/server_file.txt', 'r')
         lines = fp.readlines()
         segments = int(sys.argv[2])
@@ -143,6 +142,7 @@ try:
                 acc_value
             ))
         os.system("rm -rf /tmp/server_file.txt")
+        os.system("rm -rf /tmp/map.data")
         time.sleep(1)
 except Exception as e:
     raise Exception(e)
