@@ -463,6 +463,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
     // support input centroids
     if (std::ifstream("map.data").good()) {
         std::ifstream r_file ("map.data", std::ios::binary);
+        printf("Size of centroids when read: %ld, %ld\n", sizeof(centroids), k * d * sizeof(float));
         r_file.read(reinterpret_cast<char*>(centroids.data()), sizeof(centroids));
     }
 
@@ -630,6 +631,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
         // Write centroids data to file if it is the first segment
         if (!std::ifstream("map.data").good()) {
             std::ofstream w_file ("map.data", std::ios::binary);
+            printf("Size of centroids when write: %ld, %ld\n", sizeof(centroids), k * d * sizeof(float));
             w_file.write(reinterpret_cast<char const*>(centroids.data()), sizeof(centroids));
         }
 
