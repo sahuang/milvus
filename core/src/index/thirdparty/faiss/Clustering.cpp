@@ -518,6 +518,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
                 }
             }
 
+             centroids.resize(d * k);
             if (!codec) {
                 for (int i = n_input_centroids; i < k; i++) {
                     memcpy(&centroids[i * d], x + centroids_index[i] * line_size, line_size);
