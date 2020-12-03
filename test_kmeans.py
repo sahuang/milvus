@@ -76,7 +76,7 @@ try:
     collection_name = sys.argv[1] + '_' + sys.argv[2]
     index_type = sys.argv[3]
     recalls = []
-    csv_name = 'Original_' + index_type + '_' + collection_name + '.csv'
+    csv_name = 'Early_' + index_type + '_' + collection_name + '.csv'
     with open(csv_name,'a') as fd:
         fd.write("{},{},{},{},{},{},{},{},{},{}\n".format(
             'nlist','nprobe','topK',
@@ -119,17 +119,17 @@ try:
         print("Recall: {}".format(acc_value))
 
         # CSV operations
-        csv_name = 'Original_' + index_type + '_' + collection_name + '.csv'
         fp = open('/tmp/server_file.txt', 'r')
         lines = fp.readlines()
         segments = int(sys.argv[2])
-        niter = int(lines[0])
+        niter = []
         train_times = []
         objectives = []
         imbalance = []
         quant_time = 0
         search_time = 0
         for loop in range(segments):
+            niter.append(int(lines[4 * loop]))
             train_times.append(float(lines[4 * loop + 1]))
             objectives.append(float(lines[4 * loop + 2]))
             imbalance.append(float(lines[4 * loop + 3]))
@@ -138,7 +138,7 @@ try:
         with open(csv_name,'a') as fd:
             fd.write("{},{},{},{},{},{},{},{},{},{}\n".format(
                 nlist,nprobe,topK,
-                niter,"_".join([str(x) for x in objectives]),
+                "_".join([str(x) for x in niter]),"_".join([str(x) for x in objectives]),
                 "_".join([str(x) for x in imbalance]),"_".join([str(x) for x in train_times]),quant_time,search_time,
                 acc_value
             ))
