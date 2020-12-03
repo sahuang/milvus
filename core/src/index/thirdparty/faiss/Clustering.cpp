@@ -463,10 +463,10 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
     std::vector<float> best_centroids;
 
     // support input centroids
-    centroids.resize(d * k);
     struct stat buffer; 
     if (stat("/tmp/map.data", &buffer) == 0) {
         std::ifstream r_file;
+        centroids.resize(d * k);
         r_file.open("/tmp/map.data", std::ifstream::binary);
         r_file.read(reinterpret_cast<char*>(centroids.data()), k * d * sizeof(float));
         r_file.close();
