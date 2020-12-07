@@ -30,6 +30,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <iostream>
+#include <fstream>
 
 #include "faiss/BuilderSuspend.h"
 #include "knowhere/common/Exception.h"
@@ -335,6 +337,11 @@ IVF::QueryImpl(int64_t n, const float* data, int64_t k, float* distances, int64_
     LOG_KNOWHERE_DEBUG_ << "IVF search cost: " << search_cost
                         << ", quantization cost: " << faiss::indexIVF_stats.quantization_time
                         << ", data search cost: " << faiss::indexIVF_stats.search_time;
+    std::ofstream MyFile;
+    MyFile.open("/tmp/server_file.txt", std::ios_base::app);
+    MyFile << faiss::indexIVF_stats.quantization_time << std::endl;
+    MyFile << faiss::indexIVF_stats.search_time << std::endl;
+    MyFile.close();
     faiss::indexIVF_stats.quantization_time = 0;
     faiss::indexIVF_stats.search_time = 0;
 }
