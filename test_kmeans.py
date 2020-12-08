@@ -119,6 +119,7 @@ try:
         print("Recall: {}".format(acc_value))
 
         # CSV operations
+        '''
         fp = open('/tmp/server_file.txt', 'r')
         lines = fp.readlines()
         segments = int(sys.argv[2])
@@ -143,6 +144,7 @@ try:
                 acc_value
             ))
         os.system("rm -rf /tmp/server_file.txt")
+        '''
         time.sleep(1)
 except Exception as e:
     raise Exception(e)
