@@ -600,7 +600,7 @@ ExecutionEngineImpl::BuildIndex(uint64_t device_id) {
             knowhere::VecIndexPtr new_index;
             double t0 = faiss::getmillisecs();
             status = BuildKnowhereIndex(field_name, index_info, new_index);
-            double diff = faiss::getmillisecs () - t0;
+            double diff = (faiss::getmillisecs () - t0) / 1000.;
             printf("Build whole index time: %.3f\n", diff);
             std::ofstream MyFile;
             MyFile.open("/tmp/server_file.txt", std::ios_base::app);

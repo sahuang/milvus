@@ -1,7 +1,7 @@
 import os
 import h5py
 import numpy as np
-from milvus import Milvus, DataType
+from milvus import Milvus
 import sys
 from pprint import pprint
 import csv
@@ -78,9 +78,9 @@ try:
     recalls = []
     csv_name = 'Early_' + index_type + '_' + collection_name + '.csv'
     with open(csv_name,'a') as fd:
-        fd.write("{},{},{},{},{},{},{},{},{},{}\n".format(
+        fd.write("{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
             'nlist','nprobe','topK',
-            'niter','objective','imbalance','training time (s)',
+            'niter','objective','imbalance','training time (s)','SQ time (s)','total build time (s)',
             'quantization time (ms)', 'data search time (ms)', 'recall'
         ))
     for c in combinations:
@@ -126,20 +126,26 @@ try:
         train_times = []
         objectives = []
         imbalance = []
+        sq_times = []
+        tot_times = []
         quant_time = 0
         search_time = 0
         for loop in range(segments):
-            niter.append(int(lines[4 * loop]))
-            train_times.append(float(lines[4 * loop + 1]))
-            objectives.append(float(lines[4 * loop + 2]))
-            imbalance.append(float(lines[4 * loop + 3]))
-            quant_time += float(lines[4 * segments + loop * 2])
-            search_time += float(lines[4 * segments + loop * 2 + 1])
+            niter.append(int(lines[6 * loop]))
+            train_times.append(float(lines[6 * loop + 1]))
+            objectives.append(float(lines[6 * loop + 2]))
+            imbalance.append(float(lines[6 * loop + 3]))
+            sq_times.append(float(lines[6 * loop + 4]))
+            tot_times.append(float(lines[6 * loop + 5]))
+            quant_time += float(lines[6 * segments + loop * 2])
+            search_time += float(lines[6 * segments + loop * 2 + 1])
         with open(csv_name,'a') as fd:
-            fd.write("{},{},{},{},{},{},{},{},{},{}\n".format(
+            fd.write("{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
                 nlist,nprobe,topK,
                 "_".join([str(x) for x in niter]),"_".join([str(x) for x in objectives]),
-                "_".join([str(x) for x in imbalance]),"_".join([str(x) for x in train_times]),quant_time,search_time,
+                "_".join([str(x) for x in imbalance]),"_".join([str(x) for x in train_times]),
+                "_".join([str(x) for x in sq_times]),"_".join([str(x) for x in tot_times]),
+                quant_time,search_time,
                 acc_value
             ))
         os.system("rm -rf /tmp/server_file.txt")

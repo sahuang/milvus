@@ -66,8 +66,8 @@ void IndexIVFPQ::train_residual (idx_t n, const float *x)
     printf("Train PQ...\n");
     double t0 = getmillisecs ();
     train_residual_o (n, x, nullptr);
-    double diff = getmillisecs () - t0;
-    printf("PQ time: %.3f\n", diff);
+    double diff = (getmillisecs () - t0) / 1000.;
+    printf("PQ time: %.3fs\n", diff);
     std::ofstream MyFile;
     MyFile.open("/tmp/server_file.txt", std::ios_base::app);
     MyFile << diff << std::endl;
