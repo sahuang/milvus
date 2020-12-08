@@ -82,12 +82,14 @@ try:
     index_type = sys.argv[3]
     recalls = []
     csv_name = 'Early_' + index_type + '_' + collection_name + '.csv'
+    '''
     with open(csv_name,'a') as fd:
         fd.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(
             'nlist','nprobe','topK', 'M',
             'niter','objective','imbalance','training time (s)',
             'quantization time (ms)', 'data search time (ms)', 'recall'
         ))
+    '''
     for c in combinations:
         nlist = c[0]
         nprobe = c[1]
@@ -124,6 +126,7 @@ try:
         print("Recall: {}".format(acc_value))
 
         # CSV operations
+        '''
         fp = open('/tmp/server_file.txt', 'r')
         lines = fp.readlines()
         segments = int(sys.argv[2])
@@ -149,6 +152,7 @@ try:
                 acc_value
             ))
         os.system("rm -rf /tmp/server_file.txt")
+        '''
         time.sleep(1)
 except Exception as e:
     raise Exception(e)
