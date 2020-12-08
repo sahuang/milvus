@@ -519,7 +519,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
             for (int q = 0; q < 10; q++) {
                 printf("%.3f\n", centroids[d * 10 * q]);
             }
-            printf("======================\n")
+            printf("======================\n");
         }
 
         post_process_centroids();
