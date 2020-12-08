@@ -515,6 +515,11 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
                     codec->sa_decode(1, x + centroids_index[i] * line_size, &centroids[i * d]);
                 }
             }
+            printf("======================\n");
+            for (int q = 0; q < 10; q++) {
+                printf("%.3f\n", centroids[d * 10 * q]);
+            }
+            printf("======================\n")
         }
 
         post_process_centroids();
