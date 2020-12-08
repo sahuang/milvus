@@ -11,6 +11,8 @@
 
 #include <cstdio>
 #include <algorithm>
+#include <iostream>
+#include <fstream>
 
 #include <omp.h>
 
@@ -181,7 +183,15 @@ IndexIVFScalarQuantizer::IndexIVFScalarQuantizer ():
 
 void IndexIVFScalarQuantizer::train_residual (idx_t n, const float *x)
 {
+    printf("Train SQ...\n");
+    double t0 = getmillisecs ();
     sq.train_residual(n, x, quantizer, by_residual, verbose);
+    double diff = getmillisecs () - t0;
+    printf("SQ time: %.3f\n", diff);
+    std::ofstream MyFile;
+    MyFile.open("/tmp/server_file.txt", std::ios_base::app);
+    MyFile << diff << std::endl;
+    MyFile.close();
 }
 
 void IndexIVFScalarQuantizer::encode_vectors(idx_t n, const float* x,

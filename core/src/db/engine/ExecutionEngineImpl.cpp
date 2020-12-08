@@ -15,6 +15,9 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <faiss/utils/utils.h>
+#include <iostream>
+#include <fstream>
 
 #include "config/ServerConfig.h"
 #include "db/SnapshotUtils.h"
@@ -595,7 +598,14 @@ ExecutionEngineImpl::BuildIndex(uint64_t device_id) {
         auto segment_writer_ptr = std::make_shared<segment::SegmentWriter>(root_path, new_visitor);
         if (IsVectorField(field)) {
             knowhere::VecIndexPtr new_index;
+            double t0 = faiss::getmillisecs();
             status = BuildKnowhereIndex(field_name, index_info, new_index);
+            double diff = faiss::getmillisecs () - t0;
+            printf("Build whole index time: %.3f\n", diff);
+            std::ofstream MyFile;
+            MyFile.open("/tmp/server_file.txt", std::ios_base::app);
+            MyFile << diff << std::endl;
+            MyFile.close();
             if (!status.ok()) {
                 return status;
             }
