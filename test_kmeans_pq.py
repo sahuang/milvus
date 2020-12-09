@@ -141,8 +141,8 @@ try:
                 train_times.append(float(lines[4 * (M + 1) * loop + 4 * inner + 1]))
                 objectives.append(float(lines[4 * (M + 1) * loop + 4 * inner + 2]))
                 imbalance.append(float(lines[4 * (M + 1) * loop + 4 * inner + 3]))
-            pq_times.append(float(4 * (M + 1) * segments + loop * 4))
-            tot_times.append(float(4 * (M + 1) * segments + loop * 4 + 1))
+            pq_times.append(float(lines[4 * (M + 1) * segments + loop * 4]))
+            tot_times.append(float(lines[4 * (M + 1) * segments + loop * 4 + 1]))
             quant_time += float(lines[4 * (M + 1) * segments + loop * 4 + 2])
             search_time += float(lines[4 * (M + 1) * segments + loop * 4 + 3])
         with open(csv_name,'a') as fd:
