@@ -82,14 +82,12 @@ try:
     index_type = sys.argv[3]
     recalls = []
     csv_name = 'Early_' + index_type + '_' + collection_name + '.csv'
-    '''
     with open(csv_name,'a') as fd:
-        fd.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(
+        fd.write("{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
             'nlist','nprobe','topK', 'M',
-            'niter','objective','imbalance','training time (s)',
+            'niter','objective','imbalance','training time (s)','PQ time (s)','total build time (s)',
             'quantization time (ms)', 'data search time (ms)', 'recall'
         ))
-    '''
     for c in combinations:
         nlist = c[0]
         nprobe = c[1]
@@ -126,7 +124,6 @@ try:
         print("Recall: {}".format(acc_value))
 
         # CSV operations
-        '''
         fp = open('/tmp/server_file.txt', 'r')
         lines = fp.readlines()
         segments = int(sys.argv[2])
@@ -134,25 +131,30 @@ try:
         train_times = []
         objectives = []
         imbalance = []
+        pq_times = []
+        tot_times = []
         quant_time = 0
         search_time = 0
         for loop in range(segments):
-            for inner in range(M):
-                niter.append(int(lines[4 * M * loop + 4 * inner]))
-                train_times.append(float(lines[4 * M * loop + 4 * inner + 1]))
-                objectives.append(float(lines[4 * M * loop + 4 * inner + 2]))
-                imbalance.append(float(lines[4 * M * loop + 4 * inner + 3]))
-            quant_time += float(lines[4 * M * segments + loop * 2])
-            search_time += float(lines[4 * M * segments + loop * 2 + 1])
+            for inner in range(M + 1):
+                niter.append(int(lines[4 * (M + 1) * loop + 4 * inner]))
+                train_times.append(float(lines[4 * (M + 1) * loop + 4 * inner + 1]))
+                objectives.append(float(lines[4 * (M + 1) * loop + 4 * inner + 2]))
+                imbalance.append(float(lines[4 * (M + 1) * loop + 4 * inner + 3]))
+            pq_times.append(float(4 * (M + 1) * segments + loop * 4))
+            tot_times.append(float(4 * (M + 1) * segments + loop * 4 + 1))
+            quant_time += float(lines[4 * (M + 1) * segments + loop * 4 + 2])
+            search_time += float(lines[4 * (M + 1) * segments + loop * 4 + 3])
         with open(csv_name,'a') as fd:
-            fd.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(
+            fd.write("{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
                 nlist,nprobe,topK,M,
                 "_".join([str(x) for x in niter]),"_".join([str(x) for x in objectives]),
-                "_".join([str(x) for x in imbalance]),"_".join([str(x) for x in train_times]),quant_time,search_time,
+                "_".join([str(x) for x in imbalance]),"_".join([str(x) for x in train_times]),
+                "_".join([str(x) for x in pq_times]),"_".join([str(x) for x in tot_times]),
+                quant_time,search_time,
                 acc_value
             ))
         os.system("rm -rf /tmp/server_file.txt")
-        '''
         time.sleep(1)
 except Exception as e:
     raise Exception(e)
