@@ -38,9 +38,10 @@ _PORT = '19530'
 client = Milvus(_HOST, _PORT)
 nb = 1000000
 nq = 100
-SIFT_PATH = '/home/ann_hdf5/sift-128-euclidean.hdf5'
-GIST_PATH = '/home/ann_hdf5/gist-960-euclidean.hdf5'
-
+#SIFT_PATH = '/home/ann_hdf5/sift-128-euclidean.hdf5'
+#GIST_PATH = '/home/ann_hdf5/gist-960-euclidean.hdf5'
+SIFT_PATH = '/home/ann_hdf5/deep-1m-angular.hdf5'
+GIST_PATH = '/home/ann_hdf5/glove-200-angular.hdf5'
 '''
 This script will take several arguments.
 
@@ -59,21 +60,22 @@ if len(sys.argv) < 4:
 elif len(sys.argv) > 5:
     raise Exception("Too many arguments!")
 
+topK = 10
 combinations = []
 for nlist in [1024, 2048, 4096]:
-    for nprobe in [1, 2, 4, 8, 16, 32]:
-        for topk in [10, 50, 100]:
-            combinations.append((nlist, nprobe, topk))
+    for nprobe in [64, 256, 1024]:
+        combinations.append((nlist, nprobe))
 
 try:
     # Read input
     if sys.argv[1] == 'SIFT':
         dataset = get_dataset(SIFT_PATH)
-        dim = 128
+        dim = 96
+        collection_name = 'DEEP' + '_' + sys.argv[2]
     else:
         dataset = get_dataset(GIST_PATH)
-        dim = 960
-    collection_name = sys.argv[1] + '_' + sys.argv[2]
+        dim = 200
+        collection_name = 'GLOVE_200_' + sys.argv[2]
     index_type = sys.argv[3]
     recalls = []
     csv_name = 'Early_' + index_type + '_' + collection_name + '.csv'
@@ -83,17 +85,34 @@ try:
             'niter','objective','imbalance','training time (s)','SQ time (s)','total build time (s)',
             'quantization time (ms)', 'data search time (ms)', 'recall'
         ))
+
+    client.drop_index(collection_name, "embedding")
+    query_embedding = np.array(dataset["test"][:nq])
+    query_hybrid = {
+        "bool": {
+            "must": [{
+                "vector": {
+                    "embedding": {"topk": topK,
+                                "query": query_embedding.tolist(),
+                                "metric_type": "IP"}
+                }
+            }]
+        }
+    }
+    pprint(client.get_collection_info(collection_name))
+    results = client.search(collection_name, query_hybrid)
+    true_ids = get_ids(results)
+
     for c in combinations:
         nlist = c[0]
         nprobe = c[1]
-        topK = c[2]
         if len(sys.argv) == 5:
             M = int(sys.argv[4])
         print("======Dataset: {}, Index Type: {}, nlist: {}, nprobe: {}, topK: {}======".format(collection_name, index_type, nlist, nprobe, topK))
 
         # Create collection, insert data, create index
         client.drop_index(collection_name, "embedding")
-        client.create_index(collection_name, "embedding", {"index_type": index_type, "metric_type": "L2", "params": {"nlist": nlist}})
+        client.create_index(collection_name, "embedding", {"index_type": index_type, "metric_type": "IP", "params": {"nlist": nlist}})
         pprint(client.get_collection_info(collection_name))
         print("==========")
 
@@ -105,7 +124,7 @@ try:
                     "vector": {
                         "embedding": {"topk": topK,
                                     "query": query_embedding.tolist(),
-                                    "metric_type": "L2",
+                                    "metric_type": "IP",
                                     "params": {"nprobe": nprobe}}
                     }
                 }]
@@ -113,8 +132,8 @@ try:
         }
         results = client.search(collection_name, query_hybrid)
         result_ids = get_ids(results)
-        true_ids = np.array(dataset["neighbors"])
-        acc_value = get_recall_value(true_ids[:nq, :topK].tolist(), result_ids)
+        # true_ids = np.array(dataset["neighbors"])
+        acc_value = get_recall_value(true_ids, result_ids)
         recalls.append(acc_value)
         print("Recall: {}".format(acc_value))
 
