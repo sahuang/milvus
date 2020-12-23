@@ -39,7 +39,7 @@ client = Milvus(_HOST, _PORT)
 nb = 1000000
 nq = 100
 SIFT_PATH = '/home/ann_hdf5/sift-128-euclidean.hdf5'
-GIST_PATH = '/home/ann_hdf5/gist-960-euclidean.hdf5'
+GIST_PATH = '/home/ann_hdf5/glove-100-angular.hdf5'
 
 '''
 This script will take several arguments.
@@ -70,45 +70,59 @@ try:
                         combinations.append((nlist, nprobe, topk, M))
     else:
         dataset = get_dataset(GIST_PATH)
-        dim = 960
+        dim = 100
         for nlist in [1024, 2048, 4096]:
-            for nprobe in [1, 2, 4, 8, 16, 32]:
-                for topk in [10, 50, 100]:
-                    for M in [120, 240, 480]:
-                        combinations.append((nlist, nprobe, topk, M))
-    collection_name = sys.argv[1] + '_' + sys.argv[2]
+            for nprobe in [64,256,1024]:
+                for M in [10, 25, 50]:
+                    combinations.append((nlist, nprobe, M))
+    collection_name = 'GLOVE_100_' + sys.argv[2]
     index_type = sys.argv[3]
     recalls = []
-    csv_name = 'Early_' + index_type + '_' + collection_name + '.csv'
+    csv_name = 'Original_' + index_type + '_' + collection_name + '.csv'
     with open(csv_name,'a') as fd:
         fd.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(
             'nlist','nprobe','topK', 'M',
             'niter','objective','imbalance','training time (s)',
             'quantization time (ms)', 'data search time (ms)', 'recall'
         ))
+    topK = 10
+    query_embedding = np.array(dataset["test"][:nq])
+    client.drop_index(collection_name, "embedding")
+    query_hybrid = {
+        "bool": {
+            "must": [{
+                "vector": {
+                    "embedding": {"topk": topK,
+                                "query": query_embedding.tolist(),
+                                "metric_type": "IP"}
+                }
+            }]
+        }
+    }
+    results = client.search(collection_name, query_hybrid)
+    true_ids = get_ids(results)
     for c in combinations:
         nlist = c[0]
         nprobe = c[1]
-        topK = c[2]
-        M = c[3]
+        M = c[2]
         print("======Dataset: {}, nlist: {}, nprobe: {}, topK: {}, M: {}======".format(
             collection_name, nlist, nprobe, topK, M))
 
         # Create collection, insert data, create index
         client.drop_index(collection_name, "embedding")
-        client.create_index(collection_name, "embedding", {"index_type": index_type, "metric_type": "L2", "params": {"nlist": nlist, "m": M}})
+        client.create_index(collection_name, "embedding", {"index_type": index_type, "metric_type": "IP", "params": {"nlist": nlist, "m": M}})
         pprint(client.get_collection_info(collection_name))
         print("==========")
 
         # Search
-        query_embedding = np.array(dataset["test"][:nq])
+        # query_embedding = np.array(dataset["test"][:nq])
         query_hybrid = {
             "bool": {
                 "must": [{
                     "vector": {
                         "embedding": {"topk": topK,
                                     "query": query_embedding.tolist(),
-                                    "metric_type": "L2",
+                                    "metric_type": "IP",
                                     "params": {"nprobe": nprobe}}
                     }
                 }]
@@ -116,8 +130,8 @@ try:
         }
         results = client.search(collection_name, query_hybrid)
         result_ids = get_ids(results)
-        true_ids = np.array(dataset["neighbors"])
-        acc_value = get_recall_value(true_ids[:nq, :topK].tolist(), result_ids)
+        # true_ids = np.array(dataset["neighbors"])
+        acc_value = get_recall_value(true_ids, result_ids)
         recalls.append(acc_value)
         print("Recall: {}".format(acc_value))
 
@@ -131,14 +145,13 @@ try:
         imbalance = []
         quant_time = 0
         search_time = 0
-        for loop in range(segments):
-            for inner in range(M + 1):
-                niter.append(int(lines[4 * (M + 1) * loop + 4 * inner]))
-                train_times.append(float(lines[4 * (M + 1) * loop + 4 * inner + 1]))
-                objectives.append(float(lines[4 * (M + 1) * loop + 4 * inner + 2]))
-                imbalance.append(float(lines[4 * (M + 1) * loop + 4 * inner + 3]))
-            quant_time += float(lines[4 * (M + 1) * segments + loop * 2])
-            search_time += float(lines[4 * (M + 1) * segments + loop * 2 + 1])
+        for inner in range(M + 1):
+            niter.append(int(lines[4 * inner]))
+            train_times.append(float(lines[4 * inner + 1]))
+            objectives.append(float(lines[4 * inner + 2]))
+            imbalance.append(float(lines[4 * inner + 3]))
+        quant_time += float(lines[4 * (M + 1)])
+        search_time += float(lines[4 * (M + 1) + 1])
         with open(csv_name,'a') as fd:
             fd.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(
                 nlist,nprobe,topK,M,
@@ -148,5 +161,6 @@ try:
             ))
         os.system("rm -rf /tmp/server_file.txt")
         time.sleep(1)
+
 except Exception as e:
     raise Exception(e)

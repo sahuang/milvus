@@ -15,17 +15,17 @@ _HOST = '127.0.0.1'
 _PORT = '19530'
 client = Milvus(_HOST, _PORT)
 nb = 1000000
-SIFT_PATH = '/home/ann_hdf5/sift-128-euclidean.hdf5'
+SIFT_PATH = '/home/ann_hdf5/glove-100-angular.hdf5'
 GIST_PATH = '/home/ann_hdf5/gist-960-euclidean.hdf5'
 
 try:
     # Read input
     dataset_sift = get_dataset(SIFT_PATH)
-    dim_sift = 128
-    dataset_gist = get_dataset(GIST_PATH)
-    dim_gist = 960
-    for segments in [1, 2, 10]:
-        collection_name_sift = 'SIFT_' + str(segments)
+    dim_sift = 100
+    #dataset_gist = get_dataset(GIST_PATH)
+    #dim_gist = 960
+    for segments in [1]:
+        collection_name_sift = 'GLOVE_100_' + str(segments)
         collection_name_gist = 'GIST_' + str(segments)
         # Create collection, insert data
         row_in_segment = nb // segments
@@ -36,46 +36,46 @@ try:
             "segment_row_limit": row_in_segment,
             "auto_id": False
         }
-        collection_param_gist = {
-            "fields": [
-                {"name": "embedding", "type": DataType.FLOAT_VECTOR, "params": {"dim": dim_gist}},
-            ],
-            "segment_row_limit": row_in_segment,
-            "auto_id": False
-        }
+        #collection_param_gist = {
+        #    "fields": [
+        #        {"name": "embedding", "type": DataType.FLOAT_VECTOR, "params": {"dim": dim_gist}},
+        #    ],
+        #    "segment_row_limit": row_in_segment,
+        #    "auto_id": False
+        #}
         if collection_name_sift in client.list_collections():
             client.drop_collection(collection_name_sift)
-        if collection_name_gist in client.list_collections():
-            client.drop_collection(collection_name_gist)
+        #if collection_name_gist in client.list_collections():
+        #    client.drop_collection(collection_name_gist)
         client.create_collection(collection_name_sift, collection_param_sift)
-        client.create_collection(collection_name_gist, collection_param_gist)
+        #client.create_collection(collection_name_gist, collection_param_gist)
         insert_vectors_sift = np.array(dataset_sift["train"]).tolist()
-        insert_vectors_gist = np.array(dataset_gist["train"]).tolist()
+        #insert_vectors_gist = np.array(dataset_gist["train"]).tolist()
         for loop in range(40):
             start = loop * 25000
             end = min((loop + 1) * 25000, nb)
             if start < end:
                 print("Start: {}, End: {}".format(start, end))
                 tmp_vectors_sift = insert_vectors_sift[start:end]
-                tmp_vectors_gist = insert_vectors_gist[start:end]
+                #tmp_vectors_gist = insert_vectors_gist[start:end]
                 ids = [i for i in range(start, end)]
                 hybrid_entities_sift = [
                     {"name": "embedding", "values": tmp_vectors_sift, "type": DataType.FLOAT_VECTOR},
                 ]
-                hybrid_entities_gist = [
-                    {"name": "embedding", "values": tmp_vectors_gist, "type": DataType.FLOAT_VECTOR},
-                ]
+                #hybrid_entities_gist = [
+                #    {"name": "embedding", "values": tmp_vectors_gist, "type": DataType.FLOAT_VECTOR},
+                #]
                 res_ids_1 = client.insert(collection_name_sift, hybrid_entities_sift, ids)
-                res_ids_2 = client.insert(collection_name_gist, hybrid_entities_gist, ids)
+                #res_ids_2 = client.insert(collection_name_gist, hybrid_entities_gist, ids)
                 assert res_ids_1 == ids
-                assert res_ids_2 == ids
-        client.flush([collection_name_sift, collection_name_gist])
+                #assert res_ids_2 == ids
+        client.flush([collection_name_sift])
         print("Total row count sift: {}, segment: {}".format(client.count_entities(collection_name_sift), segments))
         print("=========================")
         pprint(client.get_collection_info(collection_name_sift))
-        print("Total row count gist: {}, segment: {}".format(client.count_entities(collection_name_gist), segments))
-        print("=========================")
-        pprint(client.get_collection_info(collection_name_gist))
+        #print("Total row count gist: {}, segment: {}".format(client.count_entities(collection_name_gist), segments))
+        #print("=========================")
+        #pprint(client.get_collection_info(collection_name_gist))
     print(client.list_collections())
 except Exception as e:
     raise Exception(e)
