@@ -5,7 +5,7 @@
 
 -include ../makefile.inc
 
-DEMOS_SRC=$(wildcard demo_*.cpp)
+DEMOS_SRC=$(wildcard demo_sift1M_2.cpp)
 DEMOS=$(DEMOS_SRC:.cpp=)
 
 
@@ -14,8 +14,8 @@ all: $(DEMOS)
 clean:
 	rm -f $(DEMOS)
 
-%: %.cpp
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CPUFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) -lfaiss
+%: %.cpp ../libfaiss.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CPUFLAGS) -o $@ $^ $(LDFLAGS) -I../ $(LIBS)
 
 
 .PHONY: all clean

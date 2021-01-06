@@ -372,15 +372,19 @@ void IndexRefineFlat::search (
         del2.set (base_distances);
     }
 
+    double t0 = faiss::getmillisecs();
     base_index->search (n, x, k_base, base_distances, base_labels);
+    printf("Base time: %.2fms\n", faiss::getmillisecs() - t0);
 
     for (int i = 0; i < n * k_base; i++)
         assert (base_labels[i] >= -1 &&
                 base_labels[i] < ntotal);
 
     // compute refined distances
+    t0 = faiss::getmillisecs();
     refine_index.compute_distance_subset (
         n, x, k_base, base_distances, base_labels);
+    printf("Refine time: %.2fms\n", faiss::getmillisecs() - t0);
 
     // sort and store result
     if (metric_type == METRIC_L2) {

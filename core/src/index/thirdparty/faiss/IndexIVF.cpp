@@ -324,6 +324,7 @@ void IndexIVF::search (idx_t n, const float *x, idx_t k,
     double t0 = getmillisecs();
     quantizer->search (n, x, nprobe, coarse_dis.get(), idx.get());
     indexIVF_stats.quantization_time += getmillisecs() - t0;
+    printf("Quantization time: %.2f\n", getmillisecs() - t0);
 
     t0 = getmillisecs();
     invlists->prefetch_lists (idx.get(), n * nprobe);
@@ -331,6 +332,7 @@ void IndexIVF::search (idx_t n, const float *x, idx_t k,
     search_preassigned (n, x, k, idx.get(), coarse_dis.get(),
                         distances, labels, false, nullptr, bitset);
     indexIVF_stats.search_time += getmillisecs() - t0;
+    printf("Search time: %.2f\n", getmillisecs() - t0);
 
     // nprobe logging
     if (LOG_DEBUG_) {

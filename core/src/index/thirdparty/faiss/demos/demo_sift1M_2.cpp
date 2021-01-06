@@ -22,6 +22,7 @@
 
 #include <faiss/utils/distances.h>
 #include <faiss/IndexFlat.h>
+#include <faiss/IndexIVFFlat.h>
 #include <faiss/IndexScalarQuantizer.h>
 
 /**
@@ -107,7 +108,7 @@ int main()
     size_t d;
     size_t nb;
 
-    size_t loops = 5;
+    size_t loops = 3;
 
     float *xb = fvecs_read("sift1M/sift_base.fvecs", &d, &nb);
     faiss::IndexFlatL2 index(d);           // call constructor
@@ -136,9 +137,10 @@ int main()
     }
     delete [] gt_int;
 
-    faiss::distance_compute_blas_threshold = 1000;
+    faiss::distance_compute_blas_threshold = 10000000;
 
     // FLAT index search
+    /*
     {
         long *I = new long[k * nq];
         float *D = new float[k * nq];
@@ -154,13 +156,17 @@ int main()
         delete [] I;
         delete [] D;
     }
+    */
 
-
-    // First SQ8, then IndexRefineFlat
+    // First IVF_SQ8, then IndexRefineFlat
+    size_t nlist = 1024;
     {
         long *I = new long[k * nq];
         float *D = new float[k * nq];
-        faiss::Index* sq = new faiss::IndexScalarQuantizer(d, faiss::QuantizerType::QT_8bit);
+        faiss::IndexFlatL2 quantizer(d);
+        faiss::Index* sq = new faiss::IndexIVFScalarQuantizer(&quantizer, d, nlist, faiss::QuantizerType::QT_8bit);
+        auto ivfsq_index = dynamic_cast<faiss::IndexIVFScalarQuantizer*>(sq);
+        ivfsq_index->nprobe = 20;
         faiss::IndexRefineFlat rf = faiss::IndexRefineFlat(sq);
         rf.train(nb, xb);
         rf.add(nb, xb);
@@ -178,11 +184,14 @@ int main()
         delete [] D;
     }
 
-    // SQ8 alone
+    // IVF_FLAT alone
     {
         long *I = new long[k * nq];
         float *D = new float[k * nq];
-        auto sq = new faiss::IndexScalarQuantizer(d, faiss::QuantizerType::QT_8bit);
+        faiss::IndexFlatL2 quantizer(d);
+        auto sq = new faiss::IndexIVFFlat(&quantizer, d, nlist);
+        auto ivfsq_index = dynamic_cast<faiss::IndexIVFFlat*>(sq);
+        ivfsq_index->nprobe = nlist;
         sq->train(nb, xb);
         sq->add(nb, xb);
         sq->search(nq, xq, k, D, I);
@@ -193,7 +202,7 @@ int main()
             avg += elapsed() - t0;
         }
         avg /= loops;
-        printf("SQ8 Recall: %.4f, time spent: %.3fs\n", CalcRecall(k, k, nq, gt, I), avg);
+        printf("IVF_FLAT Recall: %.4f, time spent: %.3fs\n", CalcRecall(k, k, nq, gt, I), avg);
         delete [] I;
         delete [] D;
     }
