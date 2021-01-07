@@ -23,7 +23,7 @@
 #include <faiss/utils/distances.h>
 #include <faiss/IndexFlat.h>
 #include <faiss/IndexIVFFlat.h>
-#include <faiss/index_factory.h>
+#include <faiss/IndexHNSW.h>
 
 /**
  * To run this demo, please download the ANN_SIFT1M dataset from
@@ -136,13 +136,15 @@ int main()
     faiss::distance_compute_blas_threshold = 1000;
     size_t small_k = 10;
     size_t nprobe = 32;
+    size_t M = 32;
+    size_t nlist = 4096;
 
     // IVF_FLAT index search
     {
         long *I = new long[small_k * nq];
         float *D = new float[small_k * nq];
         faiss::IndexFlatL2 quantizer(d);
-        auto ivf = new faiss::IndexIVFFlat(&quantizer, d, 65536);
+        auto ivf = new faiss::IndexIVFFlat(&quantizer, d, nlist);
         auto ivf_index = dynamic_cast<faiss::IndexIVFFlat*>(ivf);
         ivf_index->nprobe = nprobe;
         ivf->train(nb, xb);
@@ -163,11 +165,11 @@ int main()
 
     // IVF65536_HNSW32
     {
-        auto index = faiss::index_factory(d, "IVF65536_HNSW32", faiss::METRIC_L2);
+        faiss::IndexHNSWFlat coarse_quantizer(d, M, faiss::METRIC_L2);
+        auto index = new faiss::IndexIVFFlat(&coarse_quantizer, d, nlist);
         long *I = new long[small_k * nq];
         float *D = new float[small_k * nq];
-        auto ivf_index = dynamic_cast<faiss::IndexIVFFlat*>(index);
-        ivf_index->nprobe = nprobe;
+        index->nprobe = nprobe;
         index->train(nb, xb);
         index->add(nb, xb);
         index->search(nq, xq, small_k, D, I);
