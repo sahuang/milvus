@@ -23,6 +23,7 @@
 #include <faiss/utils/distances.h>
 #include <faiss/IndexFlat.h>
 #include <faiss/IndexScalarQuantizer.h>
+#include <faiss/index_factory.h>
 
 /**
  * To run this demo, please download the ANN_SIFT1M dataset from
@@ -89,7 +90,7 @@ CalcRecall(int64_t topk, int64_t k, int nq, faiss::Index::idx_t* gt, faiss::Inde
         //std::vector<int64_t> ids_0 = true_ids[i].ids;
         //std::vector<int64_t> ids_1 = result_ids[i].ids;
         std::vector<faiss::Index::idx_t> ids_0(gt+i*k,gt+i*k+topk);
-        std::vector<faiss::Index::idx_t> ids_1(nt+i*k,nt+i*k+topk);
+        std::vector<faiss::Index::idx_t> ids_1(nt+i*topk,nt+i*topk+topk);
         std::sort(ids_0.begin(), ids_0.end());
         std::sort(ids_1.begin(), ids_1.end());
         std::vector<faiss::Index::idx_t> v(nq * 2);
@@ -156,44 +157,22 @@ int main()
     }
 
 
-    // First SQ8, then IndexRefineFlat
+    // IVF65536_HNSW32
     {
+        auto index = faiss::index_factory(d, "IVF65536_HNSW32", faiss::METRIC_L2);
         long *I = new long[k * nq];
         float *D = new float[k * nq];
-        faiss::Index* sq = new faiss::IndexScalarQuantizer(d, faiss::QuantizerType::QT_8bit);
-        faiss::IndexRefineFlat rf = faiss::IndexRefineFlat(sq);
-        rf.train(nb, xb);
-        rf.add(nb, xb);
-        rf.k_factor = 4;
-        rf.search(nq, xq, k, D, I);
+        index->train(nb, xb);
+        index->add(nb, xb);
+        index->search(nq, xq, k, D, I);
         double avg = 0.0f;
         for (int i = 0; i < loops; i++) {
             double t0 = elapsed();
-            rf.search(nq, xq, k, D, I);
+            index->search(nq, xq, k, D, I);
             avg += elapsed() - t0;
         }
         avg /= loops;
-        printf("RefineFlat Recall: %.4f, time spent: %.3fs\n", CalcRecall(k, k, nq, gt, I), avg);
-        delete [] I;
-        delete [] D;
-    }
-
-    // SQ8 alone
-    {
-        long *I = new long[k * nq];
-        float *D = new float[k * nq];
-        auto sq = new faiss::IndexScalarQuantizer(d, faiss::QuantizerType::QT_8bit);
-        sq->train(nb, xb);
-        sq->add(nb, xb);
-        sq->search(nq, xq, k, D, I);
-        double avg = 0.0f;
-        for (int i = 0; i < loops; i++) {
-            double t0 = elapsed();
-            sq->search(nq, xq, k, D, I);
-            avg += elapsed() - t0;
-        }
-        avg /= loops;
-        printf("SQ8 Recall: %.4f, time spent: %.3fs\n", CalcRecall(k, k, nq, gt, I), avg);
+        printf("IVF_HNSW Recall: %.4f, time spent: %.3fs\n", CalcRecall(k, k, nq, gt, I), avg);
         delete [] I;
         delete [] D;
     }

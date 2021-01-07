@@ -5,7 +5,7 @@
 
 -include ../makefile.inc
 
-DEMOS_SRC=$(wildcard demo_sift1M_2.cpp)
+DEMOS_SRC=$(wildcard demo_sift1M.cpp)
 DEMOS=$(DEMOS_SRC:.cpp=)
 
 
