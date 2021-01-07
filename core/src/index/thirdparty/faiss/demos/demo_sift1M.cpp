@@ -22,7 +22,7 @@
 
 #include <faiss/utils/distances.h>
 #include <faiss/IndexFlat.h>
-#include <faiss/IndexScalarQuantizer.h>
+#include <faiss/IndexIVFFlat.h>
 #include <faiss/index_factory.h>
 
 /**
@@ -111,10 +111,6 @@ int main()
     size_t loops = 5;
 
     float *xb = fvecs_read("sift1M/sift_base.fvecs", &d, &nb);
-    faiss::IndexFlatL2 index(d);           // call constructor
-    // printf("is_trained = %s\n", index.is_trained ? "true" : "false");
-    index.add(nb, xb);                     // add vectors to the index
-    // printf("ntotal = %ld\n", index.ntotal);
 
     size_t nq;
     float *xq;
@@ -138,20 +134,28 @@ int main()
     delete [] gt_int;
 
     faiss::distance_compute_blas_threshold = 1000;
+    size_t small_k = 10;
+    size_t nprobe = 32;
 
-    // FLAT index search
+    // IVF_FLAT index search
     {
-        long *I = new long[k * nq];
-        float *D = new float[k * nq];
-        index.search(nq, xq, k, D, I);
+        long *I = new long[small_k * nq];
+        float *D = new float[small_k * nq];
+        faiss::IndexFlatL2 quantizer(d);
+        auto ivf = new faiss::IndexIVFFlat(&quantizer, d, 65536);
+        auto ivf_index = dynamic_cast<faiss::IndexIVFFlat*>(ivf);
+        ivf_index->nprobe = nprobe;
+        ivf->train(nb, xb);
+        ivf->add(nb, xb);
+        ivf->search(nq, xq, small_k, D, I);
         double avg = 0.0f;
         for (int i = 0; i < loops; i++) {
             double t0 = elapsed();
-            index.search(nq, xq, k, D, I);
+            ivf->search(nq, xq, small_k, D, I);
             avg += elapsed() - t0;
         }
         avg /= loops;
-        printf("Flat Recall: %.4f, time spent: %.3fs\n", CalcRecall(k, k, nq, gt, I), avg);
+        printf("IVF_FLAT Recall: %.4f, time spent: %.3fs\n", CalcRecall(small_k, k, nq, gt, I), avg);
         delete [] I;
         delete [] D;
     }
@@ -160,19 +164,21 @@ int main()
     // IVF65536_HNSW32
     {
         auto index = faiss::index_factory(d, "IVF65536_HNSW32", faiss::METRIC_L2);
-        long *I = new long[k * nq];
-        float *D = new float[k * nq];
+        long *I = new long[small_k * nq];
+        float *D = new float[small_k * nq];
+        auto ivf_index = dynamic_cast<faiss::IndexIVFFlat*>(index);
+        ivf_index->nprobe = nprobe;
         index->train(nb, xb);
         index->add(nb, xb);
-        index->search(nq, xq, k, D, I);
+        index->search(nq, xq, small_k, D, I);
         double avg = 0.0f;
         for (int i = 0; i < loops; i++) {
             double t0 = elapsed();
-            index->search(nq, xq, k, D, I);
+            index->search(nq, xq, small_k, D, I);
             avg += elapsed() - t0;
         }
         avg /= loops;
-        printf("IVF_HNSW Recall: %.4f, time spent: %.3fs\n", CalcRecall(k, k, nq, gt, I), avg);
+        printf("IVF_HNSW Recall: %.4f, time spent: %.3fs\n", CalcRecall(small_k, k, nq, gt, I), avg);
         delete [] I;
         delete [] D;
     }
