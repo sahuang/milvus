@@ -24,7 +24,7 @@
 #include <faiss/IndexFlat.h>
 #include <faiss/IndexIVFFlat.h>
 #include <faiss/IndexScalarQuantizer.h>
-
+#include <faiss/IndexIVFPQ.h>
 /**
  * To run this demo, please download the ANN_SIFT1M dataset from
  *
@@ -90,7 +90,7 @@ CalcRecall(int64_t topk, int64_t k, int nq, faiss::Index::idx_t* gt, faiss::Inde
         //std::vector<int64_t> ids_0 = true_ids[i].ids;
         //std::vector<int64_t> ids_1 = result_ids[i].ids;
         std::vector<faiss::Index::idx_t> ids_0(gt+i*k,gt+i*k+topk);
-        std::vector<faiss::Index::idx_t> ids_1(nt+i*k,nt+i*k+topk);
+        std::vector<faiss::Index::idx_t> ids_1(nt+i*topk,nt+i*topk+topk);
         std::sort(ids_0.begin(), ids_0.end());
         std::sort(ids_1.begin(), ids_1.end());
         std::vector<faiss::Index::idx_t> v(nq * 2);
@@ -108,7 +108,7 @@ int main()
     size_t d;
     size_t nb;
 
-    size_t loops = 3;
+    size_t loops = 5;
 
     float *xb = fvecs_read("sift1M/sift_base.fvecs", &d, &nb);
     faiss::IndexFlatL2 index(d);           // call constructor
@@ -160,53 +160,57 @@ int main()
 
     // First IVF_SQ8, then IndexRefineFlat
     size_t nlist = 1024;
+    size_t nprobe = 128;
+    size_t small_k = 10;
+
     {
-        long *I = new long[k * nq];
-        float *D = new float[k * nq];
+        long *I = new long[small_k * nq];
+        float *D = new float[small_k * nq];
         faiss::IndexFlatL2 quantizer(d);
-        faiss::Index* sq = new faiss::IndexIVFScalarQuantizer(&quantizer, d, nlist, faiss::QuantizerType::QT_8bit);
-        auto ivfsq_index = dynamic_cast<faiss::IndexIVFScalarQuantizer*>(sq);
-        ivfsq_index->nprobe = 20;
+        faiss::Index* sq = new faiss::IndexIVFPQ(&quantizer, d, nlist, 32, 8);
+        auto ivfsq_index = dynamic_cast<faiss::IndexIVFPQ*>(sq);
+        ivfsq_index->nprobe = nprobe;
         faiss::IndexRefineFlat rf = faiss::IndexRefineFlat(sq);
         rf.train(nb, xb);
         rf.add(nb, xb);
-        rf.k_factor = 4;
-        rf.search(nq, xq, k, D, I);
+        rf.k_factor = 8;
+        rf.search(nq, xq, small_k, D, I);
         double avg = 0.0f;
         for (int i = 0; i < loops; i++) {
             double t0 = elapsed();
-            rf.search(nq, xq, k, D, I);
+            rf.search(nq, xq, small_k, D, I);
             avg += elapsed() - t0;
         }
         avg /= loops;
-        printf("RefineFlat Recall: %.4f, time spent: %.3fs\n", CalcRecall(k, k, nq, gt, I), avg);
+        printf("RefineFlat Recall: %.4f, time spent: %.3fs\n", CalcRecall(small_k, k, nq, gt, I), avg);
         delete [] I;
         delete [] D;
     }
 
     // IVF_FLAT alone
+    /*
     {
-        long *I = new long[k * nq];
-        float *D = new float[k * nq];
+        long *I = new long[small_k * nq];
+        float *D = new float[small_k * nq];
         faiss::IndexFlatL2 quantizer(d);
         auto sq = new faiss::IndexIVFFlat(&quantizer, d, nlist);
         auto ivfsq_index = dynamic_cast<faiss::IndexIVFFlat*>(sq);
-        ivfsq_index->nprobe = nlist;
+        ivfsq_index->nprobe = nprobe;
         sq->train(nb, xb);
         sq->add(nb, xb);
-        sq->search(nq, xq, k, D, I);
+        sq->search(nq, xq, small_k, D, I);
         double avg = 0.0f;
         for (int i = 0; i < loops; i++) {
             double t0 = elapsed();
-            sq->search(nq, xq, k, D, I);
+            sq->search(nq, xq, small_k, D, I);
             avg += elapsed() - t0;
         }
         avg /= loops;
-        printf("IVF_FLAT Recall: %.4f, time spent: %.3fs\n", CalcRecall(k, k, nq, gt, I), avg);
+        printf("IVF_FLAT Recall: %.4f, time spent: %.3fs\n", CalcRecall(small_k, k, nq, gt, I), avg);
         delete [] I;
         delete [] D;
     }
-
+*/
     delete [] xq;
     delete [] gt;
     return 0;
