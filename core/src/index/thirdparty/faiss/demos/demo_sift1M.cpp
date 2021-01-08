@@ -76,6 +76,24 @@ int *ivecs_read(const char *fname, size_t *d_out, size_t *n_out)
     return (int*)fvecs_read(fname, d_out, n_out);
 }
 
+float * base_read(const char*fname, size_t k, long nb)
+{
+    FILE *f = fopen(fname, "r");
+    float *out  = new float[k*nb];
+    fread(out, sizeof(float), k*nb, f);
+    fclose(f);
+    return out;
+}
+
+int * ground_read(const char*fname, size_t k, long nb)
+{
+    FILE *f = fopen(fname, "r");
+    int *out  = new int[k*nb];
+    fread(out, sizeof(int), k*nb, f);
+    fclose(f);
+    return out;
+}
+
 double elapsed ()
 {
     struct timeval tv;
@@ -105,86 +123,85 @@ CalcRecall(int64_t topk, int64_t k, int nq, faiss::Index::idx_t* gt, faiss::Inde
 
 int main()
 {
-    size_t d;
-    size_t nb;
+    size_t d = 128;
+    size_t nb = 10000000;
 
-    size_t loops = 5;
+    size_t loops = 1;
 
-    float *xb = fvecs_read("sift1M/sift_base.fvecs", &d, &nb);
+    float *xb = base_read("sift10M_base", d, nb);
 
-    size_t nq;
+    size_t nq = 10000;
     float *xq;
 
-    size_t d2;
-    xq = fvecs_read("sift1M/sift_query.fvecs", &d2, &nq);
-    assert(d == d2 || !"query does not have same dimension as train set");
+    xq = base_read("sift10M_query", d, nq);
+    // assert(d == d2 || !"query does not have same dimension as train set");
 
-    size_t k; // nb of results per query in the GT
-    faiss::Index::idx_t *gt;  // nq * k matrix of ground-truth nearest-neighbors
+    size_t k = 100; // nb of results per query in the GT
 
-    // load ground-truth and convert int to long
-    size_t nq2;
-    int *gt_int = ivecs_read("sift1M/sift_groundtruth.ivecs", &k, &nq2);
-    assert(nq2 == nq || !"incorrect nb of ground truth entries");
-
-    gt = new faiss::Index::idx_t[k * nq];
-    for(int i = 0; i < k * nq; i++) {
-        gt[i] = gt_int[i];
-    }
-    delete [] gt_int;
-
-    faiss::distance_compute_blas_threshold = 1000;
-    size_t small_k = 10;
-    size_t nprobe = 32;
+    faiss::distance_compute_blas_threshold = 10000000;
+    size_t small_k = 100;
+    // size_t nprobe = 32;
     size_t M = 32;
-    size_t nlist = 4096;
+    size_t nlist = 65536;
 
-    // IVF_FLAT index search
-    {
-        long *I = new long[small_k * nq];
-        float *D = new float[small_k * nq];
-        faiss::IndexFlatL2 quantizer(d);
-        auto ivf = new faiss::IndexIVFFlat(&quantizer, d, nlist);
-        auto ivf_index = dynamic_cast<faiss::IndexIVFFlat*>(ivf);
-        ivf_index->nprobe = nprobe;
-        ivf->train(nb, xb);
-        ivf->add(nb, xb);
-        ivf->search(nq, xq, small_k, D, I);
-        double avg = 0.0f;
-        for (int i = 0; i < loops; i++) {
-            double t0 = elapsed();
-            ivf->search(nq, xq, small_k, D, I);
-            avg += elapsed() - t0;
+    printf("FLAT search\n");
+    faiss::IndexFlatL2 index(d);           // call constructor
+    index.add(nb, xb);
+    long *gt = new long[k * nq];
+    float *D = new float[k * nq];
+    index.search(nq, xq, k, D, gt);
+    delete [] D;
+/*
+    printf("IVF_FLAT index search\n");
+    for (size_t nprobe = 128; nprobe < 200; nprobe += 64) {
+        {
+            long *I = new long[small_k * nq];
+            float *D = new float[small_k * nq];
+            faiss::IndexFlatL2 quantizer(d);
+            auto ivf = new faiss::IndexIVFFlat(&quantizer, d, nlist);
+            auto ivf_index = dynamic_cast<faiss::IndexIVFFlat*>(ivf);
+            ivf_index->nprobe = nprobe;
+            ivf->train(nb, xb);
+            ivf->add(nb, xb);
+	    ivf->search(nq, xq, small_k, D, I);
+            double avg = 0.0f;
+	    for (int i = 0; i < loops; i++) {
+	        double t0 = elapsed();
+	        ivf->search(nq, xq, small_k, D, I);
+                avg += elapsed() - t0;
+            }
+            avg /= loops;
+            printf("nprobe: %ld, IVF_FLAT Recall: %.4f, time spent: %.3fs\n", nprobe, CalcRecall(small_k, k, nq, gt, I), avg);
+            delete [] I;
+            delete [] D;
         }
-        avg /= loops;
-        printf("IVF_FLAT Recall: %.4f, time spent: %.3fs\n", CalcRecall(small_k, k, nq, gt, I), avg);
-        delete [] I;
-        delete [] D;
     }
+*/
 
-
-    // IVF65536_HNSW32
-    {
-        faiss::IndexHNSWFlat coarse_quantizer(d, M, faiss::METRIC_L2);
-        auto index = new faiss::IndexIVFFlat(&coarse_quantizer, d, nlist);
-        long *I = new long[small_k * nq];
-        float *D = new float[small_k * nq];
-        index->nprobe = nprobe;
-        index->train(nb, xb);
-        index->add(nb, xb);
-        index->search(nq, xq, small_k, D, I);
-        double avg = 0.0f;
-        for (int i = 0; i < loops; i++) {
-            double t0 = elapsed();
+    printf("IVF65536_HNSW32 index search\n");
+    for (size_t nprobe = 256; nprobe < 512; nprobe += 16) {
+        if (nprobe != 256 && nprobe != 328) continue;
+        {
+            faiss::IndexHNSWFlat coarse_quantizer(d, M, faiss::METRIC_L2);
+            auto index = new faiss::IndexIVFFlat(&coarse_quantizer, d, nlist);
+            long *I = new long[small_k * nq];
+            float *D = new float[small_k * nq];
+            index->nprobe = nprobe;
+            index->train(nb, xb);
+            index->add(nb, xb);
             index->search(nq, xq, small_k, D, I);
-            avg += elapsed() - t0;
+            double avg = 0.0f;
+            for (int i = 0; i < loops; i++) {
+                double t0 = elapsed();
+                index->search(nq, xq, small_k, D, I);
+                avg += elapsed() - t0;
+            }
+            avg /= loops;
+            printf("nprobe: %ld, IVF_HNSW Recall: %.4f, time spent: %.3fs\n", nprobe, CalcRecall(small_k, k, nq, gt, I), avg);
+            delete [] I;
+            delete [] D;
         }
-        avg /= loops;
-        printf("IVF_HNSW Recall: %.4f, time spent: %.3fs\n", CalcRecall(small_k, k, nq, gt, I), avg);
-        delete [] I;
-        delete [] D;
     }
-
     delete [] xq;
     delete [] gt;
     return 0;
