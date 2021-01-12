@@ -141,32 +141,27 @@ int main()
     faiss::distance_compute_blas_threshold = 10000000;
 
     printf("OPQ16_64,IVF4096,PQ16 index search\n");
-    for (size_t nprobe = 1; nprobe <= 4096; nprobe *= 2) {
-        {
-            faiss::VectorTransform *vt_1 = new faiss::OPQMatrix (d, 16, 64);
-            d = 64;
-            faiss::Index *coarse_quantizer = new faiss::IndexFlatL2 (d);
-            faiss::IndexIVFPQ *index_ivf = new faiss::IndexIVFPQ(coarse_quantizer, d, 4096, 16, 8);
-            index_ivf->quantizer_trains_alone = 0;
-            index_ivf->metric_type = faiss::METRIC_L2;
-            index_ivf->cp.spherical = false;
-            index_ivf->own_fields = true;
-            index_ivf->do_polysemous_training = false;
-            index_ivf->nprobe = nprobe;
-            faiss::Index *index = index_ivf;
-            faiss::IndexPreTransform *index_pt = new faiss::IndexPreTransform (index);
-            index_pt->own_fields = true;
-            index_pt->prepend_transform(vt_1);
-            index = index_pt;
-            long *I = new long[k * nq];
-            float *D = new float[k * nq];
-            index->train(nb, xb);
-            index->add(nb, xb);
-            index->search(nq, xq, k, D, I);
+    {
+        faiss::VectorTransform *vt_1 = new faiss::OPQMatrix (d, 16, 64);
+        d = 64;
+        faiss::Index *coarse_quantizer = new faiss::IndexFlatL2 (d);
+        faiss::IndexIVFPQ *index_ivf = new faiss::IndexIVFPQ(coarse_quantizer, d, 4096, 16, 8);
+        faiss::Index *index = index_ivf;
+        faiss::IndexPreTransform *index_pt = new faiss::IndexPreTransform (index);
+        index_pt->prepend_transform(vt_1);
+        index = index_pt;
+        long *I = new long[k * nq];
+        float *D = new float[k * nq];
+        index->train(nb, xb);
+        index->add(nb, xb);
+        for (size_t nprobe = 1; nprobe <= 4096; nprobe *= 2) {
+            faiss::IndexIVFPQ *tmp = dynamic_cast<faiss::IndexIVFPQ*>(index);
+            tmp->nprobe = nprobe;
+            tmp->search(nq, xq, k, D, I);
             double avg = 0.0f;
             for (int i = 0; i < loops; i++) {
                 double t0 = elapsed();
-                index->search(nq, xq, k, D, I);
+                tmp->search(nq, xq, k, D, I);
                 avg += elapsed() - t0;
             }
             avg /= loops;
@@ -176,9 +171,9 @@ int main()
                 CalcRecall(10, k, nq, gt, I), 
                 CalcRecall(100, k, nq, gt, I), 
                 avg);
-            delete [] I;
-            delete [] D;
         }
+        delete [] I;
+        delete [] D;
     }
     delete [] xq;
     delete [] gt;
