@@ -77,24 +77,6 @@ int *ivecs_read(const char *fname, size_t *d_out, size_t *n_out)
     return (int*)fvecs_read(fname, d_out, n_out);
 }
 
-float * base_read(const char*fname, size_t k, long nb)
-{
-    FILE *f = fopen(fname, "r");
-    float *out  = new float[k*nb];
-    fread(out, sizeof(float), k*nb, f);
-    fclose(f);
-    return out;
-}
-
-int * ground_read(const char*fname, size_t k, long nb)
-{
-    FILE *f = fopen(fname, "r");
-    int *out  = new int[k*nb];
-    fread(out, sizeof(int), k*nb, f);
-    fclose(f);
-    return out;
-}
-
 double elapsed ()
 {
     struct timeval tv;
@@ -124,33 +106,38 @@ CalcRecall(int64_t topk, int64_t k, int nq, faiss::Index::idx_t* gt, faiss::Inde
 
 int main()
 {
-    size_t d = 128;
-    size_t nb = 10000000;
+    size_t d;
+    size_t nb;
 
     size_t loops = 3;
 
-    float *xb = base_read("sift10M_base", d, nb);
+    float *xb = fvecs_read("sift1M/sift_base.fvecs", &d, &nb);
 
-    size_t nq = 10000;
+    faiss::IndexFlatL2 index(d);
+    index.add(nb, xb);
+
+    size_t nq;
     float *xq;
 
-    xq = base_read("sift10M_query", d, nq);
-    // assert(d == d2 || !"query does not have same dimension as train set");
+    size_t d2;
+    xq = fvecs_read("sift1M/sift_query.fvecs", &d2, &nq);
+    assert(d == d2 || !"query does not have same dimension as train set");
 
-    size_t k = 100; // nb of results per query in the GT
+    size_t k; // nb of results per query in the GT
+    faiss::Index::idx_t *gt;  // nq * k matrix of ground-truth nearest-neighbors
+
+    // load ground-truth and convert int to long
+    size_t nq2;
+    int *gt_int = ivecs_read("sift1M/sift_groundtruth.ivecs", &k, &nq2);
+    assert(nq2 == nq || !"incorrect nb of ground truth entries");
+
+    gt = new faiss::Index::idx_t[k * nq];
+    for(int i = 0; i < k * nq; i++) {
+        gt[i] = gt_int[i];
+    }
+    delete [] gt_int;
 
     faiss::distance_compute_blas_threshold = 10000000;
-    // size_t nprobe = 32;
-    size_t M = 32;
-    size_t nlist = 65536;
-
-    printf("FLAT search\n");
-    faiss::IndexFlatL2 index(d);           // call constructor
-    index.add(nb, xb);
-    long *gt = new long[k * nq];
-    float *D = new float[k * nq];
-    index.search(nq, xq, k, D, gt);
-    delete [] D;
 
     printf("OPQ16_64,IVF4096,PQ16 index search\n");
     for (size_t nprobe = 1; nprobe <= 4096; nprobe *= 2) {
