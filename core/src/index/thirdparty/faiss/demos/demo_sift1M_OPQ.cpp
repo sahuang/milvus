@@ -144,6 +144,7 @@ int main()
     for (size_t nprobe = 1; nprobe <= 4096; nprobe *= 2) {
         {
             faiss::VectorTransform *vt_1 = new faiss::OPQMatrix (d, 16, 64);
+            d = 64;
             faiss::Index *coarse_quantizer = new faiss::IndexFlatL2 (d);
             faiss::IndexIVFPQ *index_ivf = new faiss::IndexIVFPQ(coarse_quantizer, d, 4096, 16, 8);
             index_ivf->quantizer_trains_alone = 0;
