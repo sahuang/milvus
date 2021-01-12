@@ -24,7 +24,8 @@
 #include <faiss/IndexFlat.h>
 #include <faiss/IndexIVFFlat.h>
 #include <faiss/IndexIVFPQ.h>
-#include <faiss/index_factory.h>
+#include <faiss/VectorTransform.h>
+#include <faiss/IndexPreTransform.h>
 
 /**
  * To run this demo, please download the ANN_SIFT1M dataset from
@@ -142,12 +143,22 @@ int main()
     printf("OPQ16_64,IVF4096,PQ16 index search\n");
     for (size_t nprobe = 1; nprobe <= 4096; nprobe *= 2) {
         {
-            auto index = faiss::index_factory(d, "OPQ16_64,IVF4096,PQ16");
+            faiss::VectorTransform *vt_1 = new faiss::OPQMatrix (d, 16, 64);
+            faiss::Index *coarse_quantizer = new faiss::IndexFlatL2 (d);
+            faiss::IndexIVFPQ *index_ivf = new faiss::IndexIVFPQ(coarse_quantizer, d, 4096, 16, 8);
+            index_ivf->quantizer_trains_alone = 0;
+            index_ivf->metric_type = faiss::METRIC_L2;
+            index_ivf->cp.spherical = false;
+            index_ivf->own_fields = true;
+            index_ivf->do_polysemous_training = false;
+            index_ivf->nprobe = nprobe;
+            faiss::Index *index = index_ivf;
+            faiss::IndexPreTransform *index_pt = new faiss::IndexPreTransform (index);
+            index_pt->own_fields = true;
+            index_pt->prepend_transform(vt_1);
+            index = index_pt;
             long *I = new long[k * nq];
             float *D = new float[k * nq];
-            auto ivfpq = dynamic_cast<faiss::IndexIVFPQ*>(index);
-            ivfpq->nprobe = nprobe;
-            ivfpq->pq.M = 16;
             index->train(nb, xb);
             index->add(nb, xb);
             index->search(nq, xq, k, D, I);
