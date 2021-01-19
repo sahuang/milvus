@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <cassert>
 #include <cstring>
+#include <algorithm>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -19,8 +20,11 @@
 
 #include <sys/time.h>
 
-#include <faiss/AutoTune.h>
-#include <faiss/index_factory.h>
+#include <faiss/utils/distances.h>
+#include <faiss/IndexFlat.h>
+#include <faiss/IndexIVFFlat.h>
+#include <faiss/IndexIVF.h>
+#include <faiss/IndexRHNSW.h>
 
 /**
  * To run this demo, please download the ANN_SIFT1M dataset from
@@ -73,6 +77,24 @@ int *ivecs_read(const char *fname, size_t *d_out, size_t *n_out)
     return (int*)fvecs_read(fname, d_out, n_out);
 }
 
+float * base_read(const char*fname, size_t k, long nb)
+{
+    FILE *f = fopen(fname, "r");
+    float *out  = new float[k*nb];
+    fread(out, sizeof(float), k*nb, f);
+    fclose(f);
+    return out;
+}
+
+int * ground_read(const char*fname, size_t k, long nb)
+{
+    FILE *f = fopen(fname, "r");
+    int *out  = new int[k*nb];
+    fread(out, sizeof(int), k*nb, f);
+    fclose(f);
+    return out;
+}
+
 double elapsed ()
 {
     struct timeval tv;
@@ -80,173 +102,80 @@ double elapsed ()
     return  tv.tv_sec + tv.tv_usec * 1e-6;
 }
 
+float
+CalcRecall(int64_t topk, int64_t k, int nq, faiss::Index::idx_t* gt, faiss::Index::idx_t* nt) {
+    float sum_ratio = 0.0f;
+    for (int i = 0; i < nq; i++) {
+        //std::vector<int64_t> ids_0 = true_ids[i].ids;
+        //std::vector<int64_t> ids_1 = result_ids[i].ids;
+        std::vector<faiss::Index::idx_t> ids_0(gt+i*k,gt+i*k+topk);
+        std::vector<faiss::Index::idx_t> ids_1(nt+i*topk,nt+i*topk+topk);
+        std::sort(ids_0.begin(), ids_0.end());
+        std::sort(ids_1.begin(), ids_1.end());
+        std::vector<faiss::Index::idx_t> v(nq * 2);
+        std::vector<faiss::Index::idx_t>::iterator it;
+        it=std::set_intersection (ids_0.begin(), ids_0.end(), ids_1.begin(), ids_1.end(), v.begin());
+        v.resize(it-v.begin());
+        sum_ratio += 1.0f * v.size() / topk;
+    }
+    return 1.0 * sum_ratio / nq;
+}
 
 
 int main()
 {
-    double t0 = elapsed();
+    size_t d = 128;
+    size_t nb = 10000000;
 
-    // this is typically the fastest one.
-    const char *index_key = "IVF4096,Flat";
+    size_t loops = 3;
 
-    // these ones have better memory usage
-    // const char *index_key = "Flat";
-    // const char *index_key = "PQ32";
-    // const char *index_key = "PCA80,Flat";
-    // const char *index_key = "IVF4096,PQ8+16";
-    // const char *index_key = "IVF4096,PQ32";
-    // const char *index_key = "IMI2x8,PQ32";
-    // const char *index_key = "IMI2x8,PQ8+16";
-    // const char *index_key = "OPQ16_64,IMI2x8,PQ8+16";
+    float *xb = base_read("sift10M_base", d, nb);
 
-    faiss::Index * index;
-
-    size_t d;
-
-    {
-        printf ("[%.3f s] Loading train set\n", elapsed() - t0);
-
-        size_t nt;
-        float *xt = fvecs_read("sift1M/sift_learn.fvecs", &d, &nt);
-
-        printf ("[%.3f s] Preparing index \"%s\" d=%ld\n",
-                elapsed() - t0, index_key, d);
-        index = faiss::index_factory(d, index_key);
-
-        printf ("[%.3f s] Training on %ld vectors\n", elapsed() - t0, nt);
-
-        index->train(nt, xt);
-        delete [] xt;
-    }
-
-
-    {
-        printf ("[%.3f s] Loading database\n", elapsed() - t0);
-
-        size_t nb, d2;
-        float *xb = fvecs_read("sift1M/sift_base.fvecs", &d2, &nb);
-        assert(d == d2 || !"dataset does not have same dimension as train set");
-
-        printf ("[%.3f s] Indexing database, size %ld*%ld\n",
-                elapsed() - t0, nb, d);
-
-        index->add(nb, xb);
-
-        delete [] xb;
-    }
-
-    size_t nq;
+    size_t nq = 10000;
     float *xq;
 
-    {
-        printf ("[%.3f s] Loading queries\n", elapsed() - t0);
+    xq = base_read("sift10M_query", d, nq);
+    // assert(d == d2 || !"query does not have same dimension as train set");
 
-        size_t d2;
-        xq = fvecs_read("sift1M/sift_query.fvecs", &d2, &nq);
-        assert(d == d2 || !"query does not have same dimension as train set");
+    size_t k = 100; // nb of results per query in the GT
 
-    }
+    faiss::distance_compute_blas_threshold = 10000000;
+    size_t small_k = 100;
+    size_t nprobe = 4;
+    size_t M = 32;
+    size_t nlist = 65536;
 
-    size_t k; // nb of results per query in the GT
-    faiss::Index::idx_t *gt;  // nq * k matrix of ground-truth nearest-neighbors
+    printf("FLAT search\n");
+    faiss::IndexFlatL2 index(d);           // call constructor
+    index.add(nb, xb);
+    long *gt = new long[k * nq];
+    float *D = new float[k * nq];
+    index.search(nq, xq, k, D, gt);
+    delete [] D;
 
-    {
-        printf ("[%.3f s] Loading ground truth for %ld queries\n",
-                elapsed() - t0, nq);
-
-        // load ground-truth and convert int to long
-        size_t nq2;
-        int *gt_int = ivecs_read("sift1M/sift_groundtruth.ivecs", &k, &nq2);
-        assert(nq2 == nq || !"incorrect nb of ground truth entries");
-
-        gt = new faiss::Index::idx_t[k * nq];
-        for(int i = 0; i < k * nq; i++) {
-            gt[i] = gt_int[i];
+    printf("IVF65536_HNSW32 index search\n");
+    for (size_t niter = 2; nprobe < 6; nprobe++) {
+        faiss::niter = niter;
+        faiss::IndexRHNSWFlat coarse_quantizer(d, M, faiss::METRIC_L2);
+        auto index = new faiss::IndexIVFFlat(&coarse_quantizer, d, nlist);
+        long *I = new long[small_k * nq];
+        float *D = new float[small_k * nq];
+        index->nprobe = nprobe;
+        double avg = elapsed();
+        index->train(nb, xb);
+        double train_time = elapsed() - avg;
+        index->add(nb, xb);
+        index->search(nq, xq, small_k, D, I);
+        for (int i = 0; i < loops; i++) {
+            double t0 = elapsed();
+            index->search(nq, xq, small_k, D, I);
         }
-        delete [] gt_int;
+        printf("nprobe: %ld, niter: %ld, IVF_HNSW Recall: %.4f, train time: %.3fs\n", 
+            nprobe, niter, CalcRecall(small_k, k, nq, gt, I), train_time);
+        delete [] I;
+        delete [] D;
     }
-
-    // Result of the auto-tuning
-    std::string selected_params;
-
-    { // run auto-tuning
-
-        printf ("[%.3f s] Preparing auto-tune criterion 1-recall at 1 "
-                "criterion, with k=%ld nq=%ld\n", elapsed() - t0, k, nq);
-
-        faiss::OneRecallAtRCriterion crit(nq, 1);
-        crit.set_groundtruth (k, nullptr, gt);
-        crit.nnn = k; // by default, the criterion will request only 1 NN
-
-        printf ("[%.3f s] Preparing auto-tune parameters\n", elapsed() - t0);
-
-        faiss::ParameterSpace params;
-        params.initialize(index);
-
-        printf ("[%.3f s] Auto-tuning over %ld parameters (%ld combinations)\n",
-                elapsed() - t0, params.parameter_ranges.size(),
-                params.n_combinations());
-
-        faiss::OperatingPoints ops;
-        params.explore (index, nq, xq, crit, &ops);
-
-        printf ("[%.3f s] Found the following operating points: \n",
-                elapsed() - t0);
-
-        ops.display ();
-
-        // keep the first parameter that obtains > 0.5 1-recall@1
-        for (int i = 0; i < ops.optimal_pts.size(); i++) {
-            if (ops.optimal_pts[i].perf > 0.5) {
-                selected_params = ops.optimal_pts[i].key;
-                break;
-            }
-        }
-        assert (selected_params.size() >= 0 ||
-                !"could not find good enough op point");
-    }
-
-
-    { // Use the found configuration to perform a search
-
-        faiss::ParameterSpace params;
-
-        printf ("[%.3f s] Setting parameter configuration \"%s\" on index\n",
-                elapsed() - t0, selected_params.c_str());
-
-        params.set_index_parameters (index, selected_params.c_str());
-
-        printf ("[%.3f s] Perform a search on %ld queries\n",
-                elapsed() - t0, nq);
-
-        // output buffers
-        faiss::Index::idx_t *I = new  faiss::Index::idx_t[nq * k];
-        float *D = new float[nq * k];
-
-        index->search(nq, xq, k, D, I);
-
-        printf ("[%.3f s] Compute recalls\n", elapsed() - t0);
-
-        // evaluate result by hand.
-        int n_1 = 0, n_10 = 0, n_100 = 0;
-        for(int i = 0; i < nq; i++) {
-            int gt_nn = gt[i * k];
-            for(int j = 0; j < k; j++) {
-                if (I[i * k + j] == gt_nn) {
-                    if(j < 1) n_1++;
-                    if(j < 10) n_10++;
-                    if(j < 100) n_100++;
-                }
-            }
-        }
-        printf("R@1 = %.4f\n", n_1 / float(nq));
-        printf("R@10 = %.4f\n", n_10 / float(nq));
-        printf("R@100 = %.4f\n", n_100 / float(nq));
-
-    }
-
     delete [] xq;
     delete [] gt;
-    delete index;
     return 0;
 }

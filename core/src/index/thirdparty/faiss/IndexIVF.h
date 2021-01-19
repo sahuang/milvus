@@ -28,6 +28,8 @@
 
 namespace faiss {
 
+extern int niter;
+
 
 /** Encapsulates a quantizer object for the IndexIVF
  *
