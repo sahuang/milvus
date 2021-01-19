@@ -157,6 +157,7 @@ int main()
     for (size_t niter = 2; nprobe < 6; nprobe++) {
         faiss::niter = niter;
         faiss::IndexRHNSWFlat coarse_quantizer(d, M, faiss::METRIC_L2);
+        coarse_quantizer.hnsw.efSearch = 64;
         auto index = new faiss::IndexIVFFlat(&coarse_quantizer, d, nlist);
         long *I = new long[small_k * nq];
         float *D = new float[small_k * nq];
