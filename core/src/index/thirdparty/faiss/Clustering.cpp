@@ -605,7 +605,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
 
             double txx = faiss::getmillisecs();
             index.add (k, centroids.data());
-            printf("Add time: %.23\n", faiss::getmillisecs() - txx);
+            printf("Add time: %.2f\n", faiss::getmillisecs() - txx);
 
             // Early stop strategy
             float diff = (prev_objective == 0) ? std::numeric_limits<float>::max() : (prev_objective - stats.obj) / prev_objective;
