@@ -43,8 +43,6 @@ int main()
     size_t d = 128;
     size_t nb = 10000000;
 
-    size_t loops = 1;
-
     float *xb = base_read("sift10M_base", d, nb);
 
     size_t nq = 10000;
@@ -69,18 +67,19 @@ int main()
     auto centroids = dynamic_cast<faiss::IndexFlat*>(index->quantizer)->xb;
     printf("%.2f %.2f %.2f\n", centroids[0], centroids[10], centroids[1024]);
 
-    std::vector<float> radius;
+    std::vector<float> radius(nlist);
     for (size_t i = 0; i < nlist; i++) {
         float *center = centroids.data() + d * i * sizeof(float);
         auto ids_i = ids[i];
-        auto res = 0.0f;
+        float res = 0.0f;
+        printf("ids_i.size(): %ld\n", ids_i.size());
         for (size_t j = 0; j < ids_i.size(); j++) {
-            printf("ids_i[j]: %ld\n", ids_i[j]);
+            if (j % 100 == 0) printf("j: %ld\n", j);
             float *data = xb + d * ids_i[j] * sizeof(float);
             float dis = faiss::fvec_L2sqr (center, data, d);
             if (dis > res) res = dis;
         }
-        radius.push_back(res);
+        radius[i] = res;
         if (i % 50 == 0) printf("Currently at %ld with radius %.2f...\n", i, res);
     }
     printf("First 2 and last 2 radius: %.2f %.2f %.2f %.2f\n", radius[0], radius[1], radius[nlist-2], radius[nlist-1]);
