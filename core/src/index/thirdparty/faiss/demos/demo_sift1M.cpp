@@ -86,7 +86,7 @@ int main()
 	    std::cout << "Unable to open file." << std::endl;
     }
     printf("centroids size: %ld\n", centroids.size());
-    printf("%.2f %.2f %.2f\n", centroids[0], centroids[10], centroids[1024]);
+    printf("%.2f %.2f %.2f\n", centroids[0], centroids[1], centroids[3]);
 
     std::vector<float> radius(nlist);
     for (size_t i = 0; i < nlist; i++) {
@@ -96,7 +96,6 @@ int main()
         printf("ids_i.size(): %ld\n", ids_i.size());
         for (size_t j = 0; j < ids_i.size(); j++) {
             if (j % 100 == 0) printf("j: %ld\n", j);
-            if (ids_i[j] >= nb) printf("error!!! %ld\n", ids_i[j]);
             float *data = xb + d * ids_i[j] * sizeof(float);
             float dis = faiss::fvec_L2sqr (center, data, d);
             if (dis > res) res = dis;
