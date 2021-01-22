@@ -66,8 +66,8 @@ int main()
     // Obtain centroid data and calculate radius
     auto ails = dynamic_cast<faiss::ArrayInvertedLists*>(index->invlists);
     auto ids = ails->ids;
-    auto centroids = coarse_quantizer.xb;
-    printf("First point: size %.2f, first num %.2f\n", centroids.size(), centroids[0]);
+    auto centroids = dynamic_cast<faiss::IndexFlat*>(index->quantizer)->xb;
+    printf("Size %ld, first num %.2f\n", centroids.size(), centroids[0]);
 
     std::vector<float> radius;
     for (size_t i = 0; i < nlist; i++) {
