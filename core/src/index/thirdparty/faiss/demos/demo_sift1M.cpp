@@ -96,7 +96,7 @@ int main()
         printf("ids_i.size(): %ld\n", ids_i.size());
         for (size_t j = 0; j < ids_i.size(); j++) {
             printf("j: %ld, d * ids_i[j]: %ld\n", j, d * ids_i[j]);
-            float *data = xb + d * ids_i[j] * sizeof(float);
+            float *data = xb + d * ids_i[j];
             float dis = faiss::fvec_L2sqr (center, data, d);
             if (dis > res) res = dis;
         }
