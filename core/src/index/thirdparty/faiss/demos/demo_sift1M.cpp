@@ -64,7 +64,28 @@ int main()
     // Obtain centroid data and calculate radius
     auto ails = dynamic_cast<faiss::ArrayInvertedLists*>(index->invlists);
     auto ids = ails->ids;
-    auto centroids = dynamic_cast<faiss::IndexFlat*>(index->quantizer)->xb;
+    // Read centroid
+    std::vector<float> centroids;
+    std::string line;
+    std::ifstream myfile ("/tmp/center.txt");
+    if (myfile.is_open()) {
+        while (!myfile.eof()) {
+            getline (myfile, line);
+            if (line.length() == 0) break;
+            std::string delimiter = ",";
+            std::stringstream s_stream(line);
+            while(s_stream.good()) {
+                std::string substr;
+                getline(s_stream, substr, ',');
+                centroids.push_back(std::stod(substr));
+            }
+            assert(centroids.size() % nlist == 0);
+        }
+        myfile.close();
+    } else {
+	    std::cout << "Unable to open file." << std::endl;
+    }
+    printf("centroids size: %ld\n", centroids.size());
     printf("%.2f %.2f %.2f\n", centroids[0], centroids[10], centroids[1024]);
 
     std::vector<float> radius(nlist);
@@ -75,6 +96,7 @@ int main()
         printf("ids_i.size(): %ld\n", ids_i.size());
         for (size_t j = 0; j < ids_i.size(); j++) {
             if (j % 100 == 0) printf("j: %ld\n", j);
+            if (ids_i[j] >= nb) printf("error!!! %ld\n", ids_i[j]);
             float *data = xb + d * ids_i[j] * sizeof(float);
             float dis = faiss::fvec_L2sqr (center, data, d);
             if (dis > res) res = dis;

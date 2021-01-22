@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <memory>
 #include <iostream>
+#include <fstream>
 
 #include <faiss/utils/utils.h>
 #include <faiss/utils/hamming.h>
@@ -101,7 +102,18 @@ void Level1Quantizer::train_q1 (size_t n, const float *x, bool verbose, MetricTy
         } else {
             clus.train (n, x, *quantizer);
         }
-        printf("Centroids: %.2f %.2f\n", clus.centroids[0], clus.centroids[1]);
+        std::ofstream MyFile;
+        MyFile.open("/tmp/center.txt", std::ios_base::app);
+        for (size_t i = 0; i < nlist; i++) {
+            for (size_t j = 0; j < d; j++) {
+                if (j < d-1) {
+                    MyFile << clus.centroids[i*d+j] << ",";
+                } else {   
+                    MyFile << clus.centroids[i*d+j] << std::endl;
+                }
+            }
+        }
+        MyFile.close();
         quantizer->is_trained = true;
     } else if (quantizer_trains_alone == 2) {
         if (verbose)
