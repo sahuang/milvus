@@ -51,14 +51,14 @@ int main()
     xq = base_read("sift10M_query", d, nq);
 
     size_t k = 100;
+    size_t M = 32;
 
     faiss::distance_compute_blas_threshold = 10000000;
-    size_t nlist = 1024;
+    size_t nlist = 65536;
 
-    printf("IVF_FLAT index search\n");
-    faiss::IndexFlat coarse_quantizer(d);
+    printf("IVF_HNSW index search\n");
+    faiss::IndexRHNSWFlat coarse_quantizer(d, M, faiss::METRIC_L2);
     auto index = new faiss::IndexIVFFlat(&coarse_quantizer, d, nlist);
-    index->quantizer_trains_alone = 2;
     index->train(nb, xb);
     index->add(nb, xb);
 
@@ -66,7 +66,26 @@ int main()
     auto ails = dynamic_cast<faiss::ArrayInvertedLists*>(index->invlists);
     auto ids = ails->ids;
     // Read centroid
-    std::vector<float> centroids = dynamic_cast<faiss::IndexFlat*>(index->quantizer)->xb;
+    std::vector<float> centroids;
+    std::string line;
+    std::ifstream myfile ("/tmp/center.txt");
+    if (myfile.is_open()) {
+        while (!myfile.eof()) {
+            getline (myfile, line);
+            if (line.length() == 0) break;
+            std::string delimiter = ",";
+            std::stringstream s_stream(line);
+            while(s_stream.good()) {
+                std::string substr;
+                getline(s_stream, substr, ',');
+                centroids.push_back(std::stod(substr));
+            }
+            assert(centroids.size() % nlist == 0);
+        }
+        myfile.close();
+    } else {
+	    std::cout << "Unable to open file." << std::endl;
+    }
     printf("centroids size: %ld\n", centroids.size());
     printf("%.2f %.2f %.2f\n", centroids[0], centroids[1], centroids[3]);
 
@@ -88,7 +107,7 @@ int main()
     printf("First 2 and last 2 radius: %.2f %.2f %.2f %.2f\n", radius[0], radius[1], radius[nlist-2], radius[nlist-1]);
 
     // Given a query, generate nlist distances and write to a file
-    for (size_t i = 0; i < 100; i++) {
+    for (size_t i = 0; i < 1000; i++) {
         float *query = xq + i * d;
         std::ofstream MyFile;
         MyFile.open("/tmp/server_file.txt", std::ios_base::app);
