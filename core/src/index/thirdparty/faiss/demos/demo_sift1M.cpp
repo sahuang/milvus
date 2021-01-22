@@ -67,13 +67,14 @@ int main()
     auto ails = dynamic_cast<faiss::ArrayInvertedLists*>(index->invlists);
     auto ids = ails->ids;
     auto centroids = dynamic_cast<faiss::IndexFlat*>(index->quantizer)->xb;
-    printf("Size %ld, first num %.2f\n", centroids.size(), centroids[0]);
+    printf("%.2f %.2f %.2f\n", centroids[0], centroids[10], centroids[1024]);
 
     std::vector<float> radius;
     for (size_t i = 0; i < nlist; i++) {
         float *center = centroids.data() + d * i * sizeof(float);
         auto ids_i = ids[i];
         auto res = 0.0f;
+        printf("ids_i.size(): %ld\n", ids_i.size());
         for (size_t j = 0; j < ids_i.size(); j++) {
             float *data = xb + d * ids_i[j] * sizeof(float);
             float dis = faiss::fvec_L2sqr (center, data, d);
