@@ -13,6 +13,8 @@
 #include <cassert>
 #include <cstring>
 #include <algorithm>
+#include <iostream>
+#include <fstream>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -25,57 +27,7 @@
 #include <faiss/IndexIVFFlat.h>
 #include <faiss/IndexIVF.h>
 #include <faiss/IndexRHNSW.h>
-
-/**
- * To run this demo, please download the ANN_SIFT1M dataset from
- *
- *   http://corpus-texmex.irisa.fr/
- *
- * and unzip it to the sudirectory sift1M.
- **/
-
-/*****************************************************
- * I/O functions for fvecs and ivecs
- *****************************************************/
-
-
-float * fvecs_read (const char *fname,
-                    size_t *d_out, size_t *n_out)
-{
-    FILE *f = fopen(fname, "r");
-    if(!f) {
-        fprintf(stderr, "could not open %s\n", fname);
-        perror("");
-        abort();
-    }
-    int d;
-    fread(&d, 1, sizeof(int), f);
-    assert((d > 0 && d < 1000000) || !"unreasonable dimension");
-    fseek(f, 0, SEEK_SET);
-    struct stat st;
-    fstat(fileno(f), &st);
-    size_t sz = st.st_size;
-    assert(sz % ((d + 1) * 4) == 0 || !"weird file size");
-    size_t n = sz / ((d + 1) * 4);
-
-    *d_out = d; *n_out = n;
-    float *x = new float[n * (d + 1)];
-    size_t nr = fread(x, sizeof(float), n * (d + 1), f);
-    assert(nr == n * (d + 1) || !"could not read whole file");
-
-    // shift array to remove row headers
-    for(size_t i = 0; i < n; i++)
-        memmove(x + i * d, x + 1 + i * (d + 1), d * sizeof(*x));
-
-    fclose(f);
-    return x;
-}
-
-// not very clean, but works as long as sizeof(int) == sizeof(float)
-int *ivecs_read(const char *fname, size_t *d_out, size_t *n_out)
-{
-    return (int*)fvecs_read(fname, d_out, n_out);
-}
+#include <faiss/FaissHook.h>
 
 float * base_read(const char*fname, size_t k, long nb)
 {
@@ -86,48 +38,12 @@ float * base_read(const char*fname, size_t k, long nb)
     return out;
 }
 
-int * ground_read(const char*fname, size_t k, long nb)
-{
-    FILE *f = fopen(fname, "r");
-    int *out  = new int[k*nb];
-    fread(out, sizeof(int), k*nb, f);
-    fclose(f);
-    return out;
-}
-
-double elapsed ()
-{
-    struct timeval tv;
-    gettimeofday (&tv, nullptr);
-    return  tv.tv_sec + tv.tv_usec * 1e-6;
-}
-
-float
-CalcRecall(int64_t topk, int64_t k, int nq, faiss::Index::idx_t* gt, faiss::Index::idx_t* nt) {
-    float sum_ratio = 0.0f;
-    for (int i = 0; i < nq; i++) {
-        //std::vector<int64_t> ids_0 = true_ids[i].ids;
-        //std::vector<int64_t> ids_1 = result_ids[i].ids;
-        std::vector<faiss::Index::idx_t> ids_0(gt+i*k,gt+i*k+topk);
-        std::vector<faiss::Index::idx_t> ids_1(nt+i*topk,nt+i*topk+topk);
-        std::sort(ids_0.begin(), ids_0.end());
-        std::sort(ids_1.begin(), ids_1.end());
-        std::vector<faiss::Index::idx_t> v(nq * 2);
-        std::vector<faiss::Index::idx_t>::iterator it;
-        it=std::set_intersection (ids_0.begin(), ids_0.end(), ids_1.begin(), ids_1.end(), v.begin());
-        v.resize(it-v.begin());
-        sum_ratio += 1.0f * v.size() / topk;
-    }
-    return 1.0 * sum_ratio / nq;
-}
-
-
 int main()
 {
     size_t d = 128;
     size_t nb = 10000000;
 
-    size_t loops = 3;
+    size_t loops = 1;
 
     float *xb = base_read("sift10M_base", d, nb);
 
@@ -135,48 +51,51 @@ int main()
     float *xq;
 
     xq = base_read("sift10M_query", d, nq);
-    // assert(d == d2 || !"query does not have same dimension as train set");
 
-    size_t k = 100; // nb of results per query in the GT
+    size_t k = 100;
 
     faiss::distance_compute_blas_threshold = 10000000;
-    size_t small_k = 100;
-    size_t nprobe = 4;
-    size_t M = 32;
-    size_t nlist = 65536;
+    size_t nlist = 1024;
 
-    printf("FLAT search\n");
-    faiss::IndexFlatL2 index(d);           // call constructor
-    index.add(nb, xb);
-    long *gt = new long[k * nq];
-    float *D = new float[k * nq];
-    index.search(nq, xq, k, D, gt);
-    delete [] D;
+    printf("IVF_FLAT index search\n");
+    faiss::IndexFlat coarse_quantizer(d);
+    auto index = new faiss::IndexIVFFlat(&coarse_quantizer, d, nlist);
+    index->train(nb, xb);
+    index->add(nb, xb);
 
-    printf("IVF65536_HNSW32 index search\n");
-    for (size_t niter = 2; nprobe < 6; nprobe++) {
-        faiss::niter = niter;
-        faiss::IndexRHNSWFlat coarse_quantizer(d, M, faiss::METRIC_L2);
-        coarse_quantizer.hnsw.efSearch = 64;
-        auto index = new faiss::IndexIVFFlat(&coarse_quantizer, d, nlist);
-        long *I = new long[small_k * nq];
-        float *D = new float[small_k * nq];
-        index->nprobe = nprobe;
-        double avg = elapsed();
-        index->train(nb, xb);
-        double train_time = elapsed() - avg;
-        index->add(nb, xb);
-        index->search(nq, xq, small_k, D, I);
-        for (int i = 0; i < loops; i++) {
-            double t0 = elapsed();
-            index->search(nq, xq, small_k, D, I);
+    // Obtain centroid data and calculate radius
+    auto ails = dynamic_cast<faiss::ArrayInvertedLists*>(index->invlists);
+    auto ids = ails->ids;
+    auto centroids = coarse_quantizer.xb;
+    printf("First point: size %.2f, first num %.2f\n", centroids.size(), centroids[0]);
+
+    std::vector<float> radius;
+    for (size_t i = 0; i < nlist; i++) {
+        float *center = centroids.data() + d * i * sizeof(float);
+        auto ids_i = ids[i];
+        auto res = 0.0f;
+        for (size_t j = 0; j < ids_i.size(); j++) {
+            float *data = xb + d * ids_i[j] * sizeof(float);
+            float dis = faiss::fvec_L2sqr (center, data, d);
+            if (dis > res) res = dis;
         }
-        printf("nprobe: %ld, niter: %ld, IVF_HNSW Recall: %.4f, train time: %.3fs\n", 
-            nprobe, niter, CalcRecall(small_k, k, nq, gt, I), train_time);
-        delete [] I;
-        delete [] D;
+        radius.push_back(res);
+        if (i % 50 == 0) printf("Currently at %ld with radius %.2f...\n", i, res);
     }
+    printf("First 2 and last 2 radius: %.2f %.2f %.2f %.2f\n", radius[0], radius[1], radius[nlist-2], radius[nlist-1]);
+
+    // Given a query, generate nlist distances and write to a file
+    for (size_t i = 0; i < 100; i++) {
+        auto query = xq + i * d * sizeof(float);
+        std::ofstream MyFile;
+        MyFile.open("/tmp/server_file.txt", std::ios_base::app);
+        for (size_t j = 0; j < nlist; j++) {
+            float D = faiss::fvec_L2sqr (query, centroids.data() + d * j * sizeof(float), d) - radius[j];
+            MyFile << D << std::endl;
+        }
+        MyFile.close();
+    }
+
     delete [] xq;
-    delete [] gt;
     return 0;
 }

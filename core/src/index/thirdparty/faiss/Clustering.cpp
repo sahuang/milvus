@@ -28,7 +28,7 @@ namespace faiss {
 ClusteringParameters::ClusteringParameters ():
     niter(25),
     nredo(1),
-    verbose(true),
+    verbose(false),
     spherical(false),
     int_centroids(false),
     update_index(false),
@@ -538,10 +538,8 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
             double t0s = getmillisecs();
 
             if (!codec) {
-                double tx = faiss::getmillisecs();
                 index.assign (nx, reinterpret_cast<const float *>(x),
                               assign.get(), dis.get());
-                printf("Assign time: %.3f\n", faiss::getmillisecs() - tx);
             } else {
                 // search by blocks of decode_block_size vectors
                 size_t code_size = codec->sa_code_size ();
@@ -603,9 +601,7 @@ void Clustering::train_encoded (idx_t nx, const uint8_t *x_in,
                 index.train (k, centroids.data());
             }
 
-            double txx = faiss::getmillisecs();
             index.add (k, centroids.data());
-            printf("Add time: %.2f\n", faiss::getmillisecs() - txx);
 
             // Early stop strategy
             float diff = (prev_objective == 0) ? std::numeric_limits<float>::max() : (prev_objective - stats.obj) / prev_objective;
